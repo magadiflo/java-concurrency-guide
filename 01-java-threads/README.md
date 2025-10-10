@@ -57,3 +57,81 @@ control, lo que permite que un `programa realice múltiples tareas de manera con
   manual de Thread, minimizar el estado mutable compartido, y usar las utilidades de la concurrencia (
   java.util.concurrent) cuando sea posible.
 
+## 🧩 Creación de hilos en Java
+
+En Java, los hilos están representados por la clase `Thread`. Existen dos formas principales de crearlos:
+
+### ✅ 1. Extendiendo la clase Thread
+
+````java
+
+@Slf4j
+public class MyThread extends Thread {
+    @Override
+    public void run() {
+        log.info("Ejecutando hilo: {}", Thread.currentThread().getName());
+    }
+
+    public static void main(String[] args) {
+        MyThread thread = new MyThread();
+        thread.start(); // Inicia el hilo
+    }
+}
+````
+
+📌 Puntos clave:
+
+- El método `run()` contiene la lógica del hilo.
+- El método `start()` `crea un nuevo hilo del sistema operativo` y luego invoca `run()` en ese hilo.
+- `Nunca` llames directamente a `run()`, ya que no se ejecutará en un nuevo hilo.
+
+````bash
+23:28:40.691 [Thread-0] INFO dev.magadiflo.app.threads.MyThread -- Ejecutando hilo: Thread-0
+````
+
+### ✅ 2. Implementando la interfaz Runnable
+
+````java
+
+@Slf4j
+public class MyRunnable implements Runnable {
+    @Override
+    public void run() {
+        log.info("Ejecutando hilo: {}", Thread.currentThread().getName());
+    }
+
+    public static void main(String[] args) {
+        Thread thread = new Thread(new MyRunnable());
+        thread.start();
+    }
+}
+````
+
+📌 Ventajas de usar Runnable:
+
+- Permite heredar de otras clases, ya que Java no soporta herencia múltiple.
+- Fomenta la separación de responsabilidades: la tarea (`Runnable`) y el hilo (`Thread`) son entidades distintas.
+
+````bash
+23:32:01.485 [Thread-0] INFO dev.magadiflo.app.threads.MyRunnable -- Ejecutando hilo: Thread-0 
+````
+
+### ⚡ Usando expresiones lambda (Java 8+)
+
+````java
+
+@Slf4j
+public class MyLambdaThread {
+    public static void main(String[] args) {
+        Runnable task = () -> log.info("Ejecutando hilo con lambda: {}", Thread.currentThread().getName());
+
+        Thread thread = new Thread(task);
+        thread.start();
+    }
+}
+````
+
+````bash
+23:34:23.314 [Thread-0] INFO dev.magadiflo.app.threads.MyLambdaThread -- Ejecutando hilo con lambda: Thread-0 
+````
+
