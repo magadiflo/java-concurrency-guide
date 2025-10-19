@@ -57,6 +57,32 @@ control, lo que permite que un `programa realice múltiples tareas de manera con
   manual de Thread, minimizar el estado mutable compartido, y usar las utilidades de la concurrencia (
   java.util.concurrent) cuando sea posible.
 
+### 🏭 Analogía de la Fábrica para Hilos en Java
+
+Imagina que tienes una fábrica 🏭 (tu programa/proceso).
+
+- El `Proceso (Programa)`: Es el edificio completo. Contiene todos los recursos compartidos,
+  el almacén de herramientas (la memoria RAM compartida), y el plan de trabajo.
+- El `Hilo (Thread)`: Es un `trabajador individual` dentro de la fábrica.
+    - `Unidad de Ejecución`: El trabajador está realizando una tarea específica (cortar, ensamblar, pintar).
+    - `Pila (Stack)`: Cada trabajador tiene su propia bandeja de herramientas y lista de instrucciones personales
+      (la pila de memoria), que nadie más usa.
+    - `Recursos Compartidos`: Todos los trabajadores (hilos) comparten el mismo almacén grande
+      (la memoria heap y variables estáticas).
+    - `Condición de Carrera`: Si dos trabajadores intentan tomar el último martillo del almacén o anotar el número
+      de productos terminados al mismo tiempo sin coordinarse, habrá un error (inconsistencia).
+
+En resumen:
+
+| Componente de Java     | Analogía de la fábrica                          | Explicación                                                                                                                                                     |
+|------------------------|-------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `Proceso (JVM)`        | El Edificio/Fábrica                             | Es el programa en ejecución. Contiene y gestiona todos los recursos.                                                                                            |
+| `Hilos (Threads)`      | Trabajadores individuales                       | Las unidades de ejecución que realizan tareas. Son la parte activa del trabajo.                                                                                 |
+| `Memoria Heap`         | El Almacén Central                              | Memoria `compartida` por todos los trabajadores (hilos). Contiene objetos, listas y variables de instancia. Aquí es donde ocurren las `condiciones de carrera`. |
+| `Pila (Stack)`         | La Bandeja de Herramientas del Trabajador       | Memoria `privada` para cada hilo. Almacena variables locales y el rastro de llamadas a métodos. Lo que un trabajador tiene aquí no lo afecta a otro.            |
+| `Métodos synchronized` | La Llave y el Candado Único                     | Un mecanismo que obliga a que `solo un trabajador` pueda entrar al almacén (recurso crítico) a la vez. El resto debe esperar.                                   |
+| `Condición de Carrera` | Dos trabajadores peleando por el último recurso | Sucede cuando dos o más trabajadores intentan modificar el almacén central al mismo tiempo sin el uso de la Taquilla.                                           |
+
 ## 🧩 Creación de hilos en Java
 
 En Java, los hilos están representados por la clase `Thread`. Existen dos formas principales de crearlos:
@@ -145,8 +171,20 @@ problemas como `deadlocks` o `race conditions`.
 
 ### 🔄 Estados del Ciclo de Vida
 
-Un hilo en Java puede encontrarse en uno de los siguientes `seis estados` definidos en la clase `Thread.State`
-y representan el comportamiento del hilo en tiempo de ejecución.
+La clase `Thread` en Java define un `enum` llamado `State`, que representa los seis posibles estados en los que un
+hilo puede encontrarse durante su ciclo de vida. Cada estado refleja el comportamiento del hilo en tiempo de ejecución,
+y un hilo `solo puede estar en un estado a la vez`.
+
+Estos estados son:
+
+- 🆕 NEW
+- 🏃 RUNNABLE
+- 🚧 BLOCKED
+- ⏳ WAITING
+- ⏱️ TIMED_WAITING
+- ✅ TERMINATED
+
+📌 Podemos acceder al estado actual de un hilo mediante el método `getState()`.
 
 [![01.png](assets/01.png)](https://www.javabrahman.com/corejava/understanding-thread-life-cycle-thread-states-in-java-tutorial-with-examples/)
 
