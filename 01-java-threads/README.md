@@ -161,6 +161,136 @@ public class MyLambdaThread {
 23:34:23.314 [Thread-0] INFO dev.magadiflo.app.threads.MyLambdaThread -- Ejecutando hilo con lambda: Thread-0 
 ````
 
+## 🚫 ¿Usaremos `Thread` directamente en proyectos reales?
+
+Aprender sobre hilos, sincronización y concurrencia en Java puede parecer complejo al inicio, especialmente cuando
+se estudian temas como `Thread`, `Runnable`, `wait()`, `notify()` o `synchronized`. Sin embargo, es importante saber
+que `en proyectos reales rara vez creamos y gestionamos hilos de forma manual`.
+
+Estos conceptos se enseñan para `entender cómo funciona la concurrencia desde su base`, no para implementarlos
+directamente en producción.
+
+### 🧵 ¿Por qué no creamos hilos manualmente?
+
+Cuando estamos aprendiendo, es común ver ejemplos como:
+
+````bash
+Thread t = new Thread(() -> {
+    System.out.println("Ejecutando tarea en un hilo...");
+});
+t.start();
+````
+
+O incluso usar la interfaz Runnable:
+
+````bash
+class MiHilo implements Runnable {
+    public void run() {
+        System.out.println("Ejecutando tarea...");
+    }
+}
+new Thread(new MiHilo()).start();
+````
+
+Estos ejemplos son `didácticos` y te ayudan a entender:
+
+- Cómo se crea un hilo.
+- Qué hace el método `start()`.
+- Cómo se ejecuta el método `run()`.
+- Qué implica sincronizar el acceso a recursos compartidos.
+
+Pero en entornos reales, esto no escala y puede traer problemas graves:
+
+| Problema                        | Explicación                                                                                     |
+|:--------------------------------|:------------------------------------------------------------------------------------------------|
+| 🧩 **Complejidad de gestión**   | Manejar el ciclo de vida de muchos hilos (inicio, finalización, errores) se vuelve difícil.     |
+| ⚠️ **Fugas de recursos**        | Crear hilos sin control puede saturar la JVM o el sistema operativo.                            |
+| 🚫 **Falta de escalabilidad**   | Crear un hilo por tarea es inviable en sistemas con cientos de miles de peticiones simultáneas. |
+| 🧠 **Mantenimiento complicado** | El código se vuelve difícil de leer, depurar y extender.                                        |
+
+### ✅ ¿Qué usamos realmente en proyectos modernos?
+
+Java proporciona `abstracciones de más alto nivel` que gestionan los hilos por nosotros y hacen que el código sea más
+legible, eficiente y seguro.
+
+### 🔹 `ExecutorService` (desde Java 5)
+
+En lugar de crear manualmente los hilos, definimos un `pool (grupo) de hilos que se reutilizan`.
+
+```bash
+ExecutorService executor = Executors.newFixedThreadPool(4); // 4 hilos
+executor.submit(() -> {
+    // tarea concurrente
+});
+executor.shutdown();
+````
+
+### 🔹 `ForkJoinPool` (desde Java 7)
+
+Ideal para tareas `divisibles y paralelizables`. Utiliza el algoritmo `work-stealing` para balancear carga entre hilos.
+
+### 🔹 `CompletableFuture` (desde Java 8)
+
+Permite ejecutar tareas de forma `asíncrona` y `no bloqueante`, encadenando acciones.
+
+```bash
+CompletableFuture.supplyAsync(() -> fetchData())
+                 .thenApply(data -> process(data))
+                 .thenAccept(result -> log(result));
+````
+
+### 🔹 `Virtual Threads` (desde Java 21+)
+
+Los `Virtual Threads` representan una nueva era en la concurrencia de Java. Permiten crear `millones de hilos ligeros`,
+administrados por la JVM (no por el sistema operativo).
+
+```bash
+try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    for (int i = 0; i < 5; i++) {
+        int id = i;
+        executor.submit(() -> {
+            System.out.println("🌱 Ejecutando tarea " + id + " en " + Thread.currentThread());
+        });
+    }
+}
+````
+
+- Se crean y destruyen casi instantáneamente.
+- Permiten manejar miles o millones de tareas concurrentes.
+- Simplifican la asincronía sin necesidad de frameworks complejos.
+
+### 🔹 Programación Reactiva (`Reactor`, `RxJava`)
+
+Basada en flujos de datos `no bloqueantes`. Ideal para sistemas altamente concurrentes y escalables.
+
+```bash
+Mono.just("dato")
+    .map(this::procesar)
+    .subscribe(this::mostrar);
+````
+
+### 🔹 Frameworks y contenedores (`Spring`, `Jakarta EE`)
+
+En aplicaciones web, los hilos son gestionados por el contenedor de servlet o el framework. El desarrollador no crea
+hilos directamente, sino que define tareas que el framework ejecuta en su contexto.
+
+### 🧭 3. En resumen
+
+| Nivel                       | Enfoque                                           | Uso común                                                 |
+|:----------------------------|:--------------------------------------------------|:----------------------------------------------------------|
+| 🧱 **Bajo nivel**           | `Thread`, `Runnable`, `wait()`, `notify()`        | Aprendizaje, ejemplos, simulaciones.                      |
+| ⚙️ **Intermedio**           | `ExecutorService`, `Future`, `Callable`           | Aplicaciones backend, APIs concurrentes.                  |
+| 🚀 **Alto nivel / moderno** | `CompletableFuture`, `Virtual Threads`, `WebFlux` | Sistemas escalables, microservicios, asincronía avanzada. |
+
+### 🧠 Conclusión
+
+> Aprender a crear hilos con `Thread` y `Runnable` es fundamental para entender cómo funciona la concurrencia en Java.
+> Pero en proyectos reales, `no gestionamos hilos manualmente`: utilizamos herramientas más robustas como
+> `ExecutorService`, `CompletableFuture`, `ForkJoinPool` o `frameworks reactivos` que gestionan los hilos por nosotros.
+
+Esta sección busca dar tranquilidad al lector: los conceptos de bajo nivel que está aprendiendo son esenciales para
+comprender el funcionamiento interno, pero en la práctica se aplican soluciones más intuitivas y seguras.
+
 ## 🧵 Ciclo de Vida de un Hilo en Java
 
 El `ciclo de vida de un hilo` (`Thread Life Cycle`) describe los diferentes `estados por los que pasa un hilo` desde
