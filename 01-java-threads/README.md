@@ -405,3 +405,161 @@ public class TerminatedState {
 20:32:15.870 [Thread-0] INFO dev.magadiflo.app.lifecycle.TerminatedState -- Hilo ejecutándose...
 20:32:15.878 [main] INFO dev.magadiflo.app.lifecycle.TerminatedState -- Estado: TERMINATED
 ````
+
+## 🔔 Métodos wait(), notify() y notifyAll() en Java
+
+Los métodos `wait()`, `notify()` y `notifyAll()` son parte de la clase base `java.lang.Object` y forman el núcleo de
+la comunicación entre hilos (`thread communication`).
+
+Estos métodos permiten que los hilos `sincronicen su ejecución y cooperen` cuando comparten un mismo recurso.
+
+### 📌 ¿Por qué están en Object y no en Thread?
+
+Porque la sincronización en Java se basa en `monitores asociados a objetos`, no a hilos. Todo objeto puede actuar como
+un monitor, por eso los métodos están definidos en `Object`.
+
+### 🧩 Concepto General
+
+Cuando varios hilos acceden a un recurso compartido (por ejemplo, una variable o una lista), puede ser necesario que
+uno de ellos espere hasta que otro hilo cambie el estado del recurso.
+
+Aquí es donde intervienen estos tres métodos, que trabajan dentro de bloques sincronizados (`synchronized`) para
+coordinar la ejecución.
+
+### ⚙️ Descripción de los Métodos
+
+| Método                 | Descripción                                                                                                                                                                            | Estado del Hilo |
+|:-----------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:----------------|
+| `wait()` ⏳             | Hace que el hilo `libere el monitor` y entre en estado de espera (`WAITING`). El hilo no puede continuar hasta que otro hilo invoque `notify()` o `notifyAll()` sobre el mismo objeto. | `WAITING`       |
+| `wait(long timeout)` ⏰ | Igual que `wait()`, pero el hilo esperará **solo el tiempo especificado** (en milisegundos).                                                                                           | `TIMED_WAITING` |
+| `notify()` 🔔          | Despierta `un solo hilo` que esté esperando sobre el monitor del objeto. No garantiza cuál hilo será despertado si hay varios en espera.                                               | —               |
+| `notifyAll()` 📢       | Despierta a `todos los hilos` que están esperando sobre el mismo objeto; solo uno continuará cuando obtenga el bloqueo.                                                                | —               |
+
+⚠️ Todos estos métodos deben ser llamados dentro de un bloque sincronizado (`synchronized`), de lo contrario lanzarán
+una excepción `IllegalMonitorStateException`.
+
+### 💻 Ejemplo Práctico
+
+Veamos un ejemplo clásico de `Productor–Consumidor`, donde un hilo produce datos y otro los consume usando `wait()` y`
+notify()`.
+
+````java
+
+@Slf4j
+public class SharedResource {
+    private boolean available = false;
+
+    public synchronized void produce(int count) {
+        while (this.available) {
+            try {
+                log.info("produce - wait #{}", count);
+                wait(); // Espera hasta que el recurso sea consumido
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        log.info("Produciendo recurso #{}", count);
+        this.available = true;
+        notify(); // Despierta al consumidor
+    }
+
+    public synchronized void consume(int count) {
+        while (!this.available) {
+            try {
+                log.info("consume - wait #{}", count);
+                wait(); // Espera hasta que haya un recurso disponible
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        log.info("Consumiendo recurso #{}", count);
+        this.available = false;
+        notify(); // Despierta al productor
+    }
+
+    public static void main(String[] args) {
+        SharedResource resource = new SharedResource();
+
+        Thread producer = new Thread(() -> {
+            for (int i = 0; i < 5; i++) {
+                resource.produce(i);
+            }
+        });
+
+        Thread consumer = new Thread(() -> {
+            for (int i = 0; i < 5; i++) {
+                resource.consume(i);
+            }
+        });
+
+        producer.start();
+        consumer.start();
+    }
+}
+````
+
+### 🔐 ¿Por qué los métodos son synchronized?
+
+Los métodos `produce()` y `consume()` están marcados como `synchronized` porque:
+
+- Los métodos `wait()` y `notify()` `solo pueden invocarse dentro de un bloque sincronizado`, es decir, cuando el hilo
+  posee el monitor del objeto.
+- Esto garantiza que el acceso a la variable compartida `available` sea seguro y consistente entre hilos.
+
+### 🧵 ¿Qué significa que estén sincronizados?
+
+Cuando un hilo entra a un método `synchronized`, bloquea el monitor del objeto (`SharedResource` en este caso).
+Esto implica:
+
+- `Ningún otro hilo` puede ejecutar otro método `synchronized` sobre el mismo objeto hasta que el monitor sea liberado.
+- El monitor se libera cuando:
+    - El método termina.
+    - El hilo llama a `wait()` → esto libera el monitor temporalmente.
+
+### 🔄 Flujo detallado de coordinación entre productor y consumidor
+
+1. El productor produce `#0`
+    - `available = false` → entra directo a la lógica de producción.
+    - Produce y cambia `available = true`.
+    - Llama a `notify()` → despierta al consumidor.
+2. El productor intenta producir `#1`
+    - `available = true` → entra al `while`, ejecuta `wait()`.
+    - Se bloquea esperando que el consumidor consuma.
+3. El consumidor consume `#0`
+    - `available = true` → entra directo a la lógica de consumo.
+    - Consume y cambia `available = false`.
+    - Llama a `notify()` → despierta al productor.
+4. El consumidor intenta consumir `#1`
+    - `available = false` → entra al `while`, ejecuta `wait()`.
+    - Se bloquea esperando que el productor produzca.
+
+📢 Este patrón se repite
+
+- Cada hilo entra a `wait()` antes de que el otro haya terminado su trabajo.
+- Esto ocurre porque ambos hilos están en bucles for, y el planificador puede hacer que uno avance más rápido.
+- El `wait()` libera el monitor, permitiendo que el otro hilo entre y lo despierte con `notify()`.
+
+````bash
+00:37:23.203 [Thread-0] INFO dev.magadiflo.app.threadcoordination.SharedResource -- Produciendo recurso #0
+00:37:23.209 [Thread-0] INFO dev.magadiflo.app.threadcoordination.SharedResource -- produce - wait #1
+00:37:23.210 [Thread-1] INFO dev.magadiflo.app.threadcoordination.SharedResource -- Consumiendo recurso #0
+00:37:23.210 [Thread-1] INFO dev.magadiflo.app.threadcoordination.SharedResource -- consume - wait #1
+00:37:23.210 [Thread-0] INFO dev.magadiflo.app.threadcoordination.SharedResource -- Produciendo recurso #1
+00:37:23.210 [Thread-0] INFO dev.magadiflo.app.threadcoordination.SharedResource -- produce - wait #2
+00:37:23.210 [Thread-1] INFO dev.magadiflo.app.threadcoordination.SharedResource -- Consumiendo recurso #1
+00:37:23.210 [Thread-1] INFO dev.magadiflo.app.threadcoordination.SharedResource -- consume - wait #2
+00:37:23.210 [Thread-0] INFO dev.magadiflo.app.threadcoordination.SharedResource -- Produciendo recurso #2
+00:37:23.210 [Thread-0] INFO dev.magadiflo.app.threadcoordination.SharedResource -- produce - wait #3
+00:37:23.210 [Thread-1] INFO dev.magadiflo.app.threadcoordination.SharedResource -- Consumiendo recurso #2
+00:37:23.210 [Thread-1] INFO dev.magadiflo.app.threadcoordination.SharedResource -- consume - wait #3
+00:37:23.210 [Thread-0] INFO dev.magadiflo.app.threadcoordination.SharedResource -- Produciendo recurso #3
+00:37:23.210 [Thread-0] INFO dev.magadiflo.app.threadcoordination.SharedResource -- produce - wait #4
+00:37:23.210 [Thread-1] INFO dev.magadiflo.app.threadcoordination.SharedResource -- Consumiendo recurso #3
+00:37:23.210 [Thread-1] INFO dev.magadiflo.app.threadcoordination.SharedResource -- consume - wait #4
+00:37:23.210 [Thread-0] INFO dev.magadiflo.app.threadcoordination.SharedResource -- Produciendo recurso #4
+00:37:23.210 [Thread-1] INFO dev.magadiflo.app.threadcoordination.SharedResource -- Consumiendo recurso #4
+````
+
+🧩 Alternativas modernas
+> En aplicaciones modernas, es más recomendable usar clases del paquete `java.util.concurrent` como `ReentrantLock`,
+> `Condition`, `BlockingQueue` o `CountDownLatch`, que ofrecen un control más claro y seguro sobre la concurrencia.
