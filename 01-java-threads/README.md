@@ -915,3 +915,81 @@ o de forma intercalada, dependiendo de la carga y asignación del sistema operat
 Este conocimiento es clave para entender cómo se comportan los hilos en la práctica, y por qué la concurrencia en Java
 puede aprovechar el hardware subyacente para mejorar el rendimiento.
 
+## 🧵 Creando hilos implementando la interfaz Runnable
+
+En la lección `"Creación de hilos en Java"`, vimos cómo crear un hilo implementando la interfaz `Runnable`.
+En esta sección profundizaremos en esta técnica, asignando nombres personalizados a los hilos y observando su
+ejecución en paralelo.
+
+### 💻 Ejemplo: implementación de Runnable con múltiples hilos
+
+Modificamos la clase que implementa la interfaz `Runnable`. Luego, creamos tres hilos y a cada uno le asignamos un
+nombre. Dentro de la implementación del método `run()` podemos obtener el hilo actual utilizando el método estático
+`Thread.currentThread()` de la clase `Thread`, y a partir de él obtener su nombre con `getName()`.
+
+````java
+
+@Slf4j
+public class MyRunnable implements Runnable {
+    @Override
+    public void run() {
+        log.info("Inicia ejecución del hilo {}", Thread.currentThread().getName());
+
+        IntStream.range(0, 3)
+                .forEach(value -> {
+                    try {
+                        Thread.sleep((long) (Math.random() * 1000));
+                        log.info("realizando tarea... índice: {}, hilo actual: {}", value, Thread.currentThread().getName());
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                });
+
+        log.info("Fin del hilo {}", Thread.currentThread().getName());
+    }
+
+    public static void main(String[] args) {
+        Thread thread1 = new Thread(new MyRunnable(), "hilo-1");
+        Thread thread2 = new Thread(new MyRunnable(), "hilo-2");
+        Thread thread3 = new Thread(new MyRunnable(), "hilo-3");
+
+        thread1.start();
+        thread2.start();
+        thread3.start();
+    }
+}
+````
+
+Al ejecutar la clase anterior, veremos que los tres hilos se ejecutan en paralelo. Además, gracias al uso de
+`Thread.sleep()` con tiempos aleatorios, se genera una especie de “competencia” entre ellos para ver cuál finaliza
+primero.
+
+````bash
+23:17:19.121 [hilo-1] INFO dev.magadiflo.app.threads.MyRunnable -- Inicia ejecución del hilo hilo-1
+23:17:19.121 [hilo-3] INFO dev.magadiflo.app.threads.MyRunnable -- Inicia ejecución del hilo hilo-3
+23:17:19.121 [hilo-2] INFO dev.magadiflo.app.threads.MyRunnable -- Inicia ejecución del hilo hilo-2
+23:17:19.649 [hilo-3] INFO dev.magadiflo.app.threads.MyRunnable -- realizando tarea... índice: 0, hilo actual: hilo-3
+23:17:19.847 [hilo-3] INFO dev.magadiflo.app.threads.MyRunnable -- realizando tarea... índice: 1, hilo actual: hilo-3
+23:17:19.862 [hilo-2] INFO dev.magadiflo.app.threads.MyRunnable -- realizando tarea... índice: 0, hilo actual: hilo-2
+23:17:20.115 [hilo-1] INFO dev.magadiflo.app.threads.MyRunnable -- realizando tarea... índice: 0, hilo actual: hilo-1
+23:17:20.407 [hilo-3] INFO dev.magadiflo.app.threads.MyRunnable -- realizando tarea... índice: 2, hilo actual: hilo-3
+23:17:20.407 [hilo-3] INFO dev.magadiflo.app.threads.MyRunnable -- Fin del hilo hilo-3
+23:17:20.830 [hilo-2] INFO dev.magadiflo.app.threads.MyRunnable -- realizando tarea... índice: 1, hilo actual: hilo-2
+23:17:21.022 [hilo-1] INFO dev.magadiflo.app.threads.MyRunnable -- realizando tarea... índice: 1, hilo actual: hilo-1
+23:17:21.158 [hilo-1] INFO dev.magadiflo.app.threads.MyRunnable -- realizando tarea... índice: 2, hilo actual: hilo-1
+23:17:21.158 [hilo-1] INFO dev.magadiflo.app.threads.MyRunnable -- Fin del hilo hilo-1
+23:17:21.327 [hilo-2] INFO dev.magadiflo.app.threads.MyRunnable -- realizando tarea... índice: 2, hilo actual: hilo-2
+23:17:21.327 [hilo-2] INFO dev.magadiflo.app.threads.MyRunnable -- Fin del hilo hilo-2 
+````
+
+🔍 Análisis
+
+- Los tres hilos (`hilo-1`, `hilo-2`, `hilo-3`) se ejecutan en paralelo, compitiendo por recursos del sistema.
+- La pausa aleatoria (`Thread.sleep(...)`) simula tareas de distinta duración, lo que genera una ejecución no
+  determinista.
+- El orden de finalización varía en cada ejecución, dependiendo del tiempo de espera aleatorio.
+
+🧠 Nota técnica
+> La interfaz `Runnable` permite separar la lógica de ejecución (`run()`) de la gestión del hilo (`Thread`).
+> Es una práctica más flexible que heredar directamente de `Thread`, y se recomienda cuando tu clase ya extiende
+> otra clase o cuando quieres reutilizar la lógica en distintos contextos.
