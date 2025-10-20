@@ -693,3 +693,225 @@ Esto implica:
 🧩 Alternativas modernas
 > En aplicaciones modernas, es más recomendable usar clases del paquete `java.util.concurrent` como `ReentrantLock`,
 > `Condition`, `BlockingQueue` o `CountDownLatch`, que ofrecen un control más claro y seguro sobre la concurrencia.
+
+## 🧵 Creando Hilos Heredando de la Clase Thread
+
+En la lección `“Creación de hilos en Java”`, vimos de manera general cómo se puede crear un hilo heredando de la
+clase `Thread`.
+
+En esta sección profundizaremos un poco más, agregando un constructor personalizado para asignar un nombre al hilo, y
+observando su estado antes y después de iniciar la ejecución.
+
+### 💻 Ejemplo: hilo con nombre personalizado
+
+````java
+
+@Slf4j
+public class MyThread extends Thread {
+
+    public MyThread(String name) {
+        super(name); // Asigna el nombre al hilo
+    }
+
+    @Override
+    public void run() {
+        log.info("Inicia ejecución del hilo {}", Thread.currentThread().getName());
+
+        IntStream.range(0, 10)
+                .forEach(value -> log.info("{}, {}", value, Thread.currentThread().getName()));
+
+        log.info("Fin del hilo {}", Thread.currentThread().getName());
+    }
+
+    public static void main(String[] args) {
+        Thread thread = new MyThread("hilo-1");
+        log.info("{}", thread.getState()); // Estado inicial
+    }
+}
+````
+
+#### 📌 Estado del hilo antes de iniciar
+
+Al ejecutar la clase anterior, la salida mostrará el estado `NEW`, ya que el hilo ha sido creado pero aún no iniciado
+con el método `start()`:
+
+````bash
+19:21:32.070 [main] INFO dev.magadiflo.app.threads.MyThread -- NEW 
+````
+
+- El objeto `Thread` existe, pero su método `run()` todavía no se ha ejecutado.
+- El hilo se encuentra en el estado inicial (`NEW`) del ciclo de vida.
+
+#### ▶️ Iniciando el hilo con start()
+
+Ahora agregamos la llamada a `start()` para iniciar la ejecución del hilo:
+
+````java
+
+@Slf4j
+public class MyThread extends Thread {
+    /* code */
+    public static void main(String[] args) {
+        Thread thread = new MyThread("hilo-1");
+        thread.start();                     // Inicia el hilo
+        log.info("{}", thread.getState());
+    }
+}
+````
+
+Observemos la salida de la ejecución anterior:
+
+````bash
+19:22:59.029 [main] INFO dev.magadiflo.app.threads.MyThread -- RUNNABLE
+19:22:59.029 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- Inicia ejecución del hilo hilo-1
+19:22:59.036 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 0, hilo-1
+19:22:59.036 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 1, hilo-1
+19:22:59.036 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 2, hilo-1
+19:22:59.036 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 3, hilo-1
+19:22:59.036 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 4, hilo-1
+19:22:59.036 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 5, hilo-1
+19:22:59.036 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 6, hilo-1
+19:22:59.036 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 7, hilo-1
+19:22:59.036 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 8, hilo-1
+19:22:59.036 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 9, hilo-1
+19:22:59.036 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- Fin del hilo hilo-1
+````
+
+- El estado `RUNNABLE` se imprime desde el hilo principal (`main`) justo después de llamar a `start()`.
+- El hilo `hilo-1` comienza su ejecución de forma `asíncrona`, imprimiendo su contenido en paralelo.
+- El nombre del hilo (`hilo-1`) se asigna mediante el constructor y se refleja en los logs.
+
+Esto demuestra cómo `dos hilos pueden ejecutarse de forma concurrente` dentro del mismo proceso.
+
+🧠 Nota técnica
+> El estado `RUNNABLE` no significa que el hilo esté ejecutándose activamente en ese instante. Indica que el hilo está
+> listo para ejecutarse y ha sido entregado al planificador del sistema operativo, quien decidirá cuándo asignarle
+> tiempo de CPU. Esta distinción es importante para evitar confusiones entre estar “activo” y estar “listo”.
+
+### 🧵 Ejecución paralela de múltiples hilos
+
+En esta sección agregamos un segundo hilo y ejecutamos la clase principal para observar cómo se comportan ambos hilos
+en tiempo de ejecución.
+
+````java
+
+@Slf4j
+public class MyThread extends Thread {
+    /* code */
+    public static void main(String[] args) {
+        Thread thread1 = new MyThread("hilo-1");
+        thread1.start();
+
+        Thread thread2 = new MyThread("hilo-2");
+        thread2.start();
+
+        log.info("{}", thread1.getState());
+        log.info("{}", thread2.getState());
+    }
+}
+````
+
+#### 🔍 ¿Se ejecutan realmente en paralelo?
+
+Sí. Aunque la salida parezca secuencial, los hilos `hilo-1` y `hilo-2` se están `ejecutando en paralelo`, gracias a que
+los procesadores modernos tienen `múltiples núcleos`.
+
+````bash
+19:28:49.497 [main] INFO dev.magadiflo.app.threads.MyThread -- RUNNABLE
+19:28:49.497 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- Inicia ejecución del hilo hilo-1
+19:28:49.497 [hilo-2] INFO dev.magadiflo.app.threads.MyThread -- Inicia ejecución del hilo hilo-2
+19:28:49.503 [main] INFO dev.magadiflo.app.threads.MyThread -- RUNNABLE
+19:28:49.505 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 0, hilo-1
+19:28:49.505 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 1, hilo-1
+19:28:49.505 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 2, hilo-1
+19:28:49.505 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 3, hilo-1
+19:28:49.505 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 4, hilo-1
+19:28:49.505 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 5, hilo-1
+19:28:49.505 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 6, hilo-1
+19:28:49.505 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 7, hilo-1
+19:28:49.505 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 8, hilo-1
+19:28:49.505 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- 9, hilo-1
+19:28:49.505 [hilo-1] INFO dev.magadiflo.app.threads.MyThread -- Fin del hilo hilo-1
+19:28:49.508 [hilo-2] INFO dev.magadiflo.app.threads.MyThread -- 0, hilo-2
+19:28:49.508 [hilo-2] INFO dev.magadiflo.app.threads.MyThread -- 1, hilo-2
+19:28:49.508 [hilo-2] INFO dev.magadiflo.app.threads.MyThread -- 2, hilo-2
+19:28:49.508 [hilo-2] INFO dev.magadiflo.app.threads.MyThread -- 3, hilo-2
+19:28:49.508 [hilo-2] INFO dev.magadiflo.app.threads.MyThread -- 4, hilo-2
+19:28:49.508 [hilo-2] INFO dev.magadiflo.app.threads.MyThread -- 5, hilo-2
+19:28:49.508 [hilo-2] INFO dev.magadiflo.app.threads.MyThread -- 6, hilo-2
+19:28:49.509 [hilo-2] INFO dev.magadiflo.app.threads.MyThread -- 7, hilo-2
+19:28:49.509 [hilo-2] INFO dev.magadiflo.app.threads.MyThread -- 8, hilo-2
+19:28:49.509 [hilo-2] INFO dev.magadiflo.app.threads.MyThread -- 9, hilo-2
+19:28:49.509 [hilo-2] INFO dev.magadiflo.app.threads.MyThread -- Fin del hilo hilo-2
+````
+
+⚠️ Importante
+> No debemos confundir concurrencia con paralelismo.
+>
+> - `Concurrencia`: varios hilos comparten tiempo de CPU, pero no necesariamente se ejecutan simultáneamente.
+> - `Paralelismo`: varios hilos o procesos se ejecutan realmente al mismo tiempo en diferentes núcleos físicos.
+
+#### 🧠 ¿Qué significa esto?
+
+- En sistemas con `un solo núcleo`, los hilos se ejecutan de forma `concurrente`, alternando su ejecución.
+- En sistemas con `múltiples núcleos`, los hilos pueden ejecutarse `realmente en paralelo`, cada uno en un núcleo
+  distinto.
+
+#### 🧠 ¿Qué son los cores y los logical processors?
+
+| Término                | Definición breve                                                                                                                                                                                    |
+|------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `Core (núcleo físico)` | Unidad física de procesamiento dentro del CPU. Cada core puede ejecutar un hilo a la vez.                                                                                                           |
+| `Logical processor`    | Unidad lógica que el sistema operativo ve como procesador. Puede ser igual o mayor al número de cores si hay Hyper-Threading. Permite que cada núcleo físico maneje dos hilos de forma intercalada. |
+
+### 🖥️ Características del CPU de ejemplo
+
+Podemos ver esta información desde el `Administrador de tareas de Windows`, pestaña `Rendimiento` → `CPU`,
+o desde la terminal de `Git Bash`.
+
+![02.png](assets/02.png)
+
+````bash
+magadiflo@SysEngJava MINGW64 ~
+$ grep "cpu cores" /proc/cpuinfo | uniq
+cpu cores       : 4
+
+magadiflo@SysEngJava MINGW64 ~
+$ grep "processor" /proc/cpuinfo | wc -l
+8 
+````
+
+Esto indica:
+
+- `4` núcleos físicos (`cores`)
+- `8` procesadores lógicos (`logical processors`)
+- El CPU soporta `Hyper-Threading` (o SMT)
+
+💡 Interpretación:
+> Tu CPU tiene 4 núcleos, y cada núcleo puede manejar 2 hilos simultáneamente.
+> Así, el sistema operativo “ve” 8 procesadores lógicos y puede distribuir tareas entre ellos.
+
+#### ⚙️ ¿Qué es Hyper-Threading (HT) o SMT?
+
+Tecnología que permite que cada núcleo físico maneje `dos hilos simultáneamente`, alternando entre ellos de forma
+eficiente.
+
+- No ejecuta ambos hilos `exactamente al mismo tiempo`, pero los intercala tan rápido que `parece simultáneo`.
+- Mejora el rendimiento en tareas multihilo al `maximizar el uso del núcleo`.
+
+#### 🧪 Ejemplo de paralelismo real
+
+Si ejecutamos 3 procesos independientes en una máquina con 4 núcleos físicos:
+
+- Cada proceso puede ser asignado a un núcleo distinto.
+- Los 3 procesos se ejecutan `realmente en paralelo`, sin alternancia.
+- El cuarto núcleo queda libre o disponible para otras tareas.
+
+### ✅ Conclusión
+
+En sistemas modernos con múltiples núcleos y soporte para `Hyper-Threading`, los hilos pueden ejecutarse en paralelo
+o de forma intercalada, dependiendo de la carga y asignación del sistema operativo.
+
+Este conocimiento es clave para entender cómo se comportan los hilos en la práctica, y por qué la concurrencia en Java
+puede aprovechar el hardware subyacente para mejorar el rendimiento.
+
