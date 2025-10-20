@@ -993,3 +993,73 @@ primero.
 > La interfaz `Runnable` permite separar la lógica de ejecución (`run()`) de la gestión del hilo (`Thread`).
 > Es una práctica más flexible que heredar directamente de `Thread`, y se recomienda cuando tu clase ya extiende
 > otra clase o cuando quieres reutilizar la lógica en distintos contextos.
+
+## 🧵 Implementando hilos con expresiones lambda y Runnable
+
+En la sección anterior implementamos la interfaz `Runnable` de forma tradicional. En esta nueva sección aprovechamos
+que `Runnable` es una `interfaz funcional`, lo que nos permite usar `expresiones lambda` para definir la lógica de
+ejecución de los hilos de manera más concisa y elegante.
+
+````java
+
+@Slf4j
+public class MyLambdaThread {
+    public static void main(String[] args) {
+        Thread thread1 = new Thread(task(), "hilo-1");
+        Thread thread2 = new Thread(task(), "hilo-2");
+        Thread thread3 = new Thread(task(), "hilo-3");
+
+        thread1.start();
+        thread2.start();
+        thread3.start();
+    }
+
+    private static Runnable task() {
+        return () -> {
+            log.info("Inicia ejecución del hilo {}", Thread.currentThread().getName());
+
+            IntStream.range(0, 3)
+                    .forEach(value -> {
+                        try {
+                            Thread.sleep((long) (Math.random() * 1000));
+                            log.info("realizando tarea... índice: {}, hilo actual: {}", value, Thread.currentThread().getName());
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    });
+
+            log.info("Fin del hilo {}", Thread.currentThread().getName());
+        };
+    }
+}
+````
+
+En este caso, el método `task()` devuelve una instancia de `Runnable` implementada mediante una `lambda`, lo que evita
+tener que crear una clase separada o una clase interna anónima. Esta sintaxis es más concisa, legible y moderna,
+y refleja cómo habitualmente se trabaja con hilos en entornos Java actuales (desde `Java 8` en adelante).
+
+Al ejecutar la clase anterior, veremos que el comportamiento es el mismo que en el ejemplo previo: los tres hilos se
+ejecutan en paralelo, y debido al retardo aleatorio, el orden de finalización puede variar en cada ejecución.
+
+````bash
+23:31:00.982 [hilo-3] INFO dev.magadiflo.app.threads.MyLambdaThread -- Inicia ejecución del hilo hilo-3
+23:31:00.982 [hilo-2] INFO dev.magadiflo.app.threads.MyLambdaThread -- Inicia ejecución del hilo hilo-2
+23:31:00.982 [hilo-1] INFO dev.magadiflo.app.threads.MyLambdaThread -- Inicia ejecución del hilo hilo-1
+23:31:01.439 [hilo-1] INFO dev.magadiflo.app.threads.MyLambdaThread -- realizando tarea... índice: 0, hilo actual: hilo-1
+23:31:01.546 [hilo-3] INFO dev.magadiflo.app.threads.MyLambdaThread -- realizando tarea... índice: 0, hilo actual: hilo-3
+23:31:01.657 [hilo-2] INFO dev.magadiflo.app.threads.MyLambdaThread -- realizando tarea... índice: 0, hilo actual: hilo-2
+23:31:01.899 [hilo-1] INFO dev.magadiflo.app.threads.MyLambdaThread -- realizando tarea... índice: 1, hilo actual: hilo-1
+23:31:02.058 [hilo-2] INFO dev.magadiflo.app.threads.MyLambdaThread -- realizando tarea... índice: 1, hilo actual: hilo-2
+23:31:02.206 [hilo-3] INFO dev.magadiflo.app.threads.MyLambdaThread -- realizando tarea... índice: 1, hilo actual: hilo-3
+23:31:02.721 [hilo-1] INFO dev.magadiflo.app.threads.MyLambdaThread -- realizando tarea... índice: 2, hilo actual: hilo-1
+23:31:02.721 [hilo-1] INFO dev.magadiflo.app.threads.MyLambdaThread -- Fin del hilo hilo-1
+23:31:02.930 [hilo-3] INFO dev.magadiflo.app.threads.MyLambdaThread -- realizando tarea... índice: 2, hilo actual: hilo-3
+23:31:02.930 [hilo-3] INFO dev.magadiflo.app.threads.MyLambdaThread -- Fin del hilo hilo-3
+23:31:02.997 [hilo-2] INFO dev.magadiflo.app.threads.MyLambdaThread -- realizando tarea... índice: 2, hilo actual: hilo-2
+23:31:02.997 [hilo-2] INFO dev.magadiflo.app.threads.MyLambdaThread -- Fin del hilo hilo-2 
+````
+
+💡 Nota técnica
+> Recordemos que `Runnable` es una `interfaz funcional`, es decir, posee un `único método abstracto` (`run()`).
+> Por esta razón, puede implementarse directamente con una expresión lambda, lo que nos permite escribir código más
+> limpio y con menor sobrecarga estructural, sin afectar el comportamiento del hilo.
