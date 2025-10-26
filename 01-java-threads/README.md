@@ -1063,3 +1063,134 @@ ejecutan en paralelo, y debido al retardo aleatorio, el orden de finalización p
 > Recordemos que `Runnable` es una `interfaz funcional`, es decir, posee un `único método abstracto` (`run()`).
 > Por esta razón, puede implementarse directamente con una expresión lambda, lo que nos permite escribir código más
 > limpio y con menor sobrecarga estructural, sin afectar el comportamiento del hilo.
+
+## 🧵 El método `join()` vs `sleep()`
+
+En esta sección comparamos dos métodos clave en la gestión de hilos en Java: `join()` y `sleep()`. Aunque ambos pueden
+provocar una pausa en la ejecución, su propósito y comportamiento son completamente distintos.
+
+### 🔄 El método `join()`
+
+El método `join()` se utiliza para que un hilo espere a que `otro hilo termine su ejecución`. Es especialmente útil
+cuando deseamos asegurarnos de que un hilo ha completado su tarea antes de proceder con el resto del código.
+
+- `Propósito`: *Sincronización*. Garantiza que el hilo actual (el que llama a `join()`) no continúe ejecutándose hasta
+  que el hilo en el que se llamó a `join()` (el "hilo objetivo") haya finalizado su trabajo.
+- `Ejemplo`: Si el `hilo A` llama a `hilo B.join()`, el `hilo A` se detiene y espera a que el `hilo B` haya terminado
+  completamente. Solo entonces el `hilo A` reanuda su ejecución.
+- `Comportamiento`: Pone al hilo llamador en un estado de espera hasta que el hilo objetivo muere (termina).
+
+### 💻 Ejemplo del método `join()`: Sincronización
+
+El objetivo de `join()` es hacer que el `hilo principal (main)` espere a que el `hilo de trabajo (worker-thread)`
+termine su tarea.
+
+````java
+
+@Slf4j
+public class JoinExample {
+    public static void main(String[] args) throws InterruptedException {
+        // 1. Creamos el hilo de trabajo (Worker Thread)
+        Thread workerThread = new Thread(task(), "worker-thread");
+
+        // Iniciamos el hilo de trabajo
+        workerThread.start();
+
+        // 2. Aquí el Hilo Principal (Main Thread) llama a join()
+        // El Hilo Principal se detiene y espera a que 'workerThread' termine.
+        log.info("({}) Esperando a que el hilo de trabajo termine, para eso usamos join()", Thread.currentThread().getName());
+        workerThread.join();
+
+        // 3. Esta línea SOLO se ejecuta DESPUÉS de que 'workerThread' ha finalizado.
+        log.info("({}) El hilo de trabajo terminó. Ahora el hilo principal puede continuar", Thread.currentThread().getName());
+    }
+
+    private static Runnable task() {
+        return () -> {
+            log.info("({}) Comenzando tarea...", Thread.currentThread().getName());
+            try {
+                long minSeconds = 3;
+                long maxSeconds = 10;
+                long randomSeconds = ThreadLocalRandom.current().nextLong(minSeconds, maxSeconds + 1);
+                log.info("Simulando ejecución de tarea con una duración de {} segundos", randomSeconds);
+
+                Thread.sleep(Duration.ofSeconds(randomSeconds));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            log.info("({}) Tarea terminada", Thread.currentThread().getName());
+        };
+    }
+}
+````
+
+Como vemos en la salida, el `hilo principal (main)` no imprime su mensaje final hasta que el `workerThread` ha
+completado el tiempo aleatorio que se le ha asignado al `sleep(...)` y ha terminado. Esto garantiza el orden de
+ejecución.
+
+````bash
+22:43:55.099 [main] INFO dev.magadiflo.app.joinsleep.JoinExample -- (main) Esperando a que el hilo de trabajo termine, para eso usamos join()
+22:43:55.099 [worker-thread] INFO dev.magadiflo.app.joinsleep.JoinExample -- (worker-thread) Comenzando tarea...
+22:43:55.111 [worker-thread] INFO dev.magadiflo.app.joinsleep.JoinExample -- Simulando ejecución de tarea con una duración de 10 segundos
+22:44:05.124 [worker-thread] INFO dev.magadiflo.app.joinsleep.JoinExample -- (worker-thread) Tarea terminada
+22:44:05.124 [main] INFO dev.magadiflo.app.joinsleep.JoinExample -- (main) El hilo de trabajo terminó. Ahora el hilo principal puede continuar 
+````
+
+### 🧠 ¿Por qué no usar `sleep()` en lugar de `join()`?
+
+> Aunque podríamos usar `Thread.sleep(...)` para pausar el hilo principal, necesitaríamos conocer de antemano cuánto
+> tiempo tomará la tarea del hilo secundario. En el mundo real, ese tiempo puede variar.
+>
+> - Si usamos `sleep(Duration.ofSeconds(10))` pero la tarea termina en `3 segundos`, el hilo principal estaría
+    `bloqueado innecesariamente` por 7 segundos.
+> - `join()` resuelve este problema:` espera exactamente el tiempo que el hilo secundario necesita para terminar`, ni
+    más ni menos.
+
+### 💤 El método `sleep()`
+
+El método `sleep()` se utiliza para `pausar temporalmente` la ejecución del `hilo actual`.
+
+- `Propósito`: Introducir una pausa o retraso.
+- `Ejemplo`: Si un hilo llama a `Thread.sleep(5000)`, el hilo se pausa durante `5000 milisegundos` (`5 segundos`).
+  Después de ese tiempo, el hilo vuelve a ser elegible para ejecutarse (estado "listo para ejecutarse").
+- `Comportamiento`: Pone al hilo llamador en un estado de bloqueo temporal durante el tiempo especificado. No
+  involucra a otros hilos ni espera a que terminen.
+- `Nota Importante`: `sleep()` es un método estático de la clase `Thread` (`Thread.sleep(...)`), lo que significa
+  que siempre afecta al hilo que está ejecutando la llamada.
+
+### 💻 Ejemplo del método `sleep()`: Pausa Temporal
+
+El objetivo de `sleep()` es `pausar temporalmente la ejecución del hilo que lo llama`
+(en este caso, el `hilo principal`, llamado `main`).
+
+````java
+
+@Slf4j
+public class SleepExample {
+    public static void main(String[] args) {
+        String threadName = Thread.currentThread().getName();
+        log.info("({}): Comenzando ejecución", threadName);
+
+        try {
+            int minSeconds = 1;
+            int maxSeconds = 5;
+            int randomSeconds = ThreadLocalRandom.current().nextInt(minSeconds, maxSeconds + 1);
+            log.info("({}): durmiendo por {} segundos", threadName, randomSeconds);
+            Thread.sleep(Duration.ofSeconds(randomSeconds));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        log.info("({}): Despierto. Continuando ejecución", threadName);
+    }
+}
+````
+
+El hilo `main` se pausa a sí mismo durante N segundos (según el valor aleatorio generado en la ejecución, en este
+caso 4 segundos). Es una pausa temporal y autoimpuesta; no espera ni depende de la finalización de ningún otro hilo.
+
+````bash
+23:13:22.508 [main] INFO dev.magadiflo.app.joinsleep.SleepExample -- (main): Comenzando ejecución
+23:13:22.519 [main] INFO dev.magadiflo.app.joinsleep.SleepExample -- (main): durmiendo por 4 segundos
+23:13:26.523 [main] INFO dev.magadiflo.app.joinsleep.SleepExample -- (main): Despierto. Continuando ejecución
+````
