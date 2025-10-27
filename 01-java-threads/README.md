@@ -1194,3 +1194,277 @@ caso 4 segundos). Es una pausa temporal y autoimpuesta; no espera ni depende de 
 23:13:22.519 [main] INFO dev.magadiflo.app.joinsleep.SleepExample -- (main): durmiendo por 4 segundos
 23:13:26.523 [main] INFO dev.magadiflo.app.joinsleep.SleepExample -- (main): Despierto. Continuando ejecución
 ````
+
+## 🔒 `synchronized` para la sincronización de hilos en Java
+
+En aplicaciones concurrentes, varios hilos pueden intentar acceder y modificar un mismo recurso de manera simultánea.
+Esto puede generar `condiciones de carrera` (race conditions), resultados inconsistentes o incluso errores difíciles
+de depurar.
+
+Para evitarlo, Java ofrece el `modificador` `synchronized`, que `garantiza acceso exclusivo` a un recurso compartido.
+Mientras un hilo está ejecutando una sección sincronizada, los demás deben esperar su turno.
+
+### 🎯 ¿Qué logra synchronized?
+
+- ✔ Controlar el acceso concurrente a recursos compartidos.
+- ✔ Evitar condiciones de carrera.
+- ✔ Mantener la coherencia de los datos.
+- ✔ Crear regiones críticas que solo un hilo puede ejecutar a la vez.
+
+### ✅ Formas de usar synchronized
+
+| Uso                     | Descripción                                                                    |
+|-------------------------|--------------------------------------------------------------------------------|
+| **Método sincronizado** | Bloquea el *objeto* (o la clase si es método estático) completo.               |
+| **Bloque sincronizado** | Bloquea solo una parte del método, sincronizando sobre un *objeto específico*. |
+
+### 🧱 Ejemplo 1: Método sincronizado vs. sin sincronización
+
+#### 🔴 Versión sin synchronized (riesgo de race condition)
+
+Veamos la operación `increment()` sin sincronización.
+
+````java
+// La operación increment() no está sincronizado
+@Slf4j
+public class Counter {
+
+    private int value = 0;
+
+    public void increment() {
+        this.value++;
+    }
+
+    public int getValue() {
+        return this.value;
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        Counter counter = new Counter();
+
+        Runnable task = () -> {
+            for (int i = 0; i < 1000; i++) {
+                counter.increment();
+            }
+        };
+
+        Thread thread1 = new Thread(task);
+        Thread thread2 = new Thread(task);
+
+        thread1.start();
+        thread2.start();
+
+        thread1.join();
+        thread2.join();
+
+        log.info("Valor final: {}", counter.getValue());
+    }
+}
+````
+
+El resultado varía en cada ejecución, es decir, esperamos que nos de el valor 2000 pero nos está dando otro valor
+reflejando una `condición de carrera`.
+
+````bash
+20:48:43.736 [main] INFO dev.magadiflo.app.synchronizd.Counter -- Valor final: 1531
+````
+
+#### ✅ Versión con synchronized (seguridad en concurrencia)
+
+En este ejemplo usamos `synchronized` para evitar que dos hilos modifiquen el contador al mismo tiempo:
+
+````java
+// La operación increment() está sincronizado con synchronized
+@Slf4j
+public class Counter {
+
+    private int value = 0;
+
+    public synchronized void increment() {
+        this.value++;
+    }
+
+    public int getValue() {
+        return this.value;
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        Counter counter = new Counter();
+
+        Runnable task = () -> {
+            for (int i = 0; i < 1000; i++) {
+                counter.increment();
+            }
+        };
+
+        Thread thread1 = new Thread(task);
+        Thread thread2 = new Thread(task);
+
+        thread1.start();
+        thread2.start();
+
+        thread1.join();
+        thread2.join();
+
+        log.info("Valor final: {}", counter.getValue());
+    }
+}
+````
+
+Observamos que ahora nos da 2000 como resultado y es el que esperamos dado que cada hilo está iterando 1000 veces.
+
+````bash
+20:50:29.065 [main] INFO dev.magadiflo.app.synchronizd.Counter -- Valor final: 2000
+````
+
+### 🧱 Ejemplo 2: Bloque sincronizado vs. sin sincronización
+
+Imaginemos una clase que representa una `caja de dinero`. Muchos hilos depositan dinero al mismo tiempo.
+Primero veamos qué pasa `sin sincronización`.
+
+#### 🔴 Versión sin synchronized (riesgo de race condition)
+
+````java
+
+@Slf4j
+public class CashBox {
+    private int money = 0;
+
+    public void deposit(int amount) {
+        log.info("Procesando depósito...");
+        this.money += amount;
+    }
+
+    public int getMoney() {
+        return this.money;
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        CashBox cashBox = new CashBox();
+
+        Runnable task = () -> {
+            for (int i = 0; i < 5000; i++) {
+                cashBox.deposit(1);
+            }
+        };
+
+        Thread thread1 = new Thread(task, "hilo-1");
+        Thread thread2 = new Thread(task, "hilo-2");
+
+        thread1.start();
+        thread2.start();
+
+        thread1.join();
+        thread2.join();
+
+        log.info("Valor final: {}", cashBox.getMoney());
+    }
+}
+````
+
+📌 Este código debería imprimir 10000 (5000 por cada hilo), aunque bastante seguido veremos números inferiores por la
+condición de carrera.
+
+````bash
+...
+21:05:38.941 [hilo-2] INFO dev.magadiflo.app.synchronizd.CashBox -- Procesando depósito...
+21:05:38.941 [hilo-2] INFO dev.magadiflo.app.synchronizd.CashBox -- Procesando depósito...
+21:05:38.941 [hilo-2] INFO dev.magadiflo.app.synchronizd.CashBox -- Procesando depósito...
+21:05:38.941 [hilo-2] INFO dev.magadiflo.app.synchronizd.CashBox -- Procesando depósito...
+21:05:38.941 [hilo-2] INFO dev.magadiflo.app.synchronizd.CashBox -- Procesando depósito...
+21:05:38.941 [main] INFO dev.magadiflo.app.synchronizd.CashBox -- Valor final: 9996
+````
+
+#### ✅ Versión con synchronized (seguridad en concurrencia)
+
+````java
+
+@Slf4j
+public class CashBox {
+
+    private final Object lock = new Object();
+    private int money = 0;
+
+    public void deposit(int amount) {
+        log.info("Procesando depósito...");
+
+        // Región crítica protegida
+        synchronized (lock) {
+            this.money += amount;
+        }
+    }
+
+    public int getMoney() {
+        return this.money;
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        CashBox cashBox = new CashBox();
+
+        Runnable task = () -> {
+            for (int i = 0; i < 5000; i++) {
+                cashBox.deposit(1);
+            }
+        };
+
+        Thread thread1 = new Thread(task, "hilo-1");
+        Thread thread2 = new Thread(task, "hilo-2");
+
+        thread1.start();
+        thread2.start();
+
+        thread1.join();
+        thread2.join();
+
+        log.info("Valor final: {}", cashBox.getMoney()); // Siempre 10000
+    }
+}
+````
+
+💡 La clave está en que `synchronized(lock)` hace que solo un hilo pueda ejecutar la parte que modifica money mientras
+lo tiene ocupado.
+
+````bash
+...
+21:10:29.550 [hilo-1] INFO dev.magadiflo.app.synchronizd.CashBox -- Procesando depósito...
+21:10:29.550 [hilo-1] INFO dev.magadiflo.app.synchronizd.CashBox -- Procesando depósito...
+21:10:29.550 [hilo-1] INFO dev.magadiflo.app.synchronizd.CashBox -- Procesando depósito...
+21:10:29.551 [main] INFO dev.magadiflo.app.synchronizd.CashBox -- Valor final: 10000 
+````
+
+#### 🎬 Resumen visual
+
+````
+Hilo A entra → lock tomado → modifica dinero → libera lock
+Hilo B espera su turno → entra luego → modificación segura
+````
+
+#### 💡 ¿Por qué usar `lock` en `synchronized(lock)`?
+
+Creamos un objeto lock dedicado (`private final Object lock = new Object();`) para tener control total sobre quién
+puede usarlo como monitor. Si usáramos `synchronized(this)` bloquearíamos toda la instancia, incluso código externo que
+pudiera usar el mismo objeto como monitor. Si usáramos `synchronized(CashBox.class)` el bloqueo sería a nivel de clase,
+lo que afecta a todas las instancias de CashBox; esto suele usarse solo cuando el método es `static`.
+Al tener un objeto `lock` privado y final garantizamos que únicamente el código dentro de nuestra clase pueda
+sincronizarse con él, evitando bloqueos inesperados y mejorando el control de la concurrencia.
+
+#### 🧩 Diferencias entre opciones de sincronización
+
+| Opción                        | Nivel del bloqueo                             | ¿Cuándo se usa?                                                                        | Impacto en concurrencia                                                      | Ejemplo                                                      |
+|-------------------------------|-----------------------------------------------|----------------------------------------------------------------------------------------|------------------------------------------------------------------------------|--------------------------------------------------------------|
+| `synchronized(lock)`          | Solo la región crítica dentro de la instancia | Cuando queremos bloquear **solo un recurso interno** y tener control total del monitor | Mejor rendimiento y aislamiento ✅                                            | `synchronized(lock) { money += amount; }`                    |
+| `synchronized(this)`          | Toda la instancia del objeto                  | Cuando el estado completo del objeto debe protegerse                                   | Cualquier código que sincronice sobre la misma instancia puede bloquearlo ⚠️ | `synchronized(this) { money += amount; }`                    |
+| `synchronized(CashBox.class)` | Clase completa (todas las instancias)         | Métodos `static` o recursos globales compartidos entre todas las instancias            | Reduce mucho la concurrencia y puede crear cuellos de botella 🚧             | `synchronized(CashBox.class) { /* critical static code */ }` |
+
+📌 Un vistazo rápido al concepto:
+
+````
+lock             → Bloqueo específico  ✅ Ideal en la mayoría de casos
+this             → Bloqueo del objeto  ⚠️ Más amplio
+CashBox.class    → Bloqueo global      🚫 Se usa poco 
+````
+
+Esto ayuda a que el lector visualice qué tan grande es el candado que se está poniendo en cada caso:
+
+- Pequeño candado 🗝️ → Más concurrencia
+- Candado gigante 🔐 → Menos concurrencia, pero seguridad total sobre el recurso
