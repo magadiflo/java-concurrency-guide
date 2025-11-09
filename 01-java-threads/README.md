@@ -1468,3 +1468,138 @@ Esto ayuda a que el lector visualice qué tan grande es el candado que se está 
 
 - Pequeño candado 🗝️ → Más concurrencia
 - Candado gigante 🔐 → Menos concurrencia, pero seguridad total sobre el recurso
+
+## ⏰ Timer y TimerTask en Java
+
+El paquete `java.util` incluye dos clases muy útiles para manejar `tareas programadas`:
+`Timer` y `TimerTask`. Juntas permiten ejecutar código de forma diferida o repetida en un hilo separado,
+sin necesidad de gestionar manualmente los hilos.
+
+### 🎯 ¿Qué son?
+
+| Clase           | Descripción                                                                                                                                                       |
+|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **`Timer`**     | Se encarga de **programar y ejecutar** una o varias tareas en momentos específicos o a intervalos regulares. Internamente crea un hilo que ejecuta dichas tareas. |
+| **`TimerTask`** | Es una clase abstracta que **representa la tarea** que queremos ejecutar. Solo tenemos que sobrescribir su método `run()`.                                        |
+
+> Cuando usamos un `Timer`, este mantiene un hilo en segundo plano (`daemon`) que va ejecutando las tareas
+> (`TimerTask`) según la programación definida. Una vez todas las tareas terminan o cancelamos el `Timer`, ese hilo
+> también finaliza.
+
+### 🧱 Ejemplo básico: ejecutar una tarea una sola vez
+
+Este ejemplo demuestra cómo Timer puede ejecutar código en un hilo distinto del principal tras un retardo determinado.
+Es una manera sencilla de introducir ejecución diferida sin necesidad de manejar manualmente los hilos.
+
+````java
+
+@Slf4j
+public class SingleTaskExample {
+    public static void main(String[] args) {
+        Timer timer = new Timer();
+        TimerTask task = new TimerTask() {
+            @Override
+            public void run() {
+                log.info("Ejecutando tarea... (hilo: {})", Thread.currentThread().getName());
+
+                timer.cancel(); // Finaliza este timer, descartando cualquier tarea programada.
+            }
+        };
+
+        // Ejecutar la tarea después de 5 segundos (5000 ms)
+        timer.schedule(task, 5000);
+
+        log.info("Tarea programada. Esperando...");
+    }
+}
+````
+
+- En este ejemplo creamos un `Timer` que ejecuta una tarea una sola vez después de 5 segundos.
+- El `Timer` arranca un hilo en segundo plano (llamado `Timer-0` por defecto) encargado de ejecutar las tareas
+  programadas.
+- Creamos una clase anónima que extiende `TimerTask`.
+    - El método `run()` contiene el código que queremos ejecutar.
+    - Dentro, llamamos a `timer.cancel()` para detener el `Timer` luego de ejecutar la tarea, evitando que el hilo en
+      segundo plano siga vivo innecesariamente.
+- Con este método `timer.schedule(task, 5000)` le decimos al `Timer` que ejecute la tarea después de
+  `5 segundos (5000 ms)`.
+- El hilo principal (`main`) registra el mensaje `“Tarea programada. Esperando…”` y finaliza.
+- Mientras tanto, el `Timer` mantiene vivo su hilo interno (`Timer-0`) hasta que la tarea se ejecuta.
+- Luego de los 5 segundos, se imprime el mensaje desde el hilo `Timer-0`, confirmando que la ejecución fue asíncrona
+  respecto al hilo principal.
+
+````bash
+13:15:38.348 [main] INFO dev.magadiflo.app.timer.SingleTaskExample -- Tarea programada. Esperando...
+13:15:43.361 [Timer-0] INFO dev.magadiflo.app.timer.SingleTaskExample -- Ejecutando tarea... (hilo: Timer-0) 
+````
+
+> 💡 `Nota`: si no agregamos el `timer.cancel()` el `Timer` seguirá activo y la `JVM` no terminará su ejecución,
+> ya que el hilo del `Timer` seguirá en segundo plano.
+
+### 🔁 Ejemplo: tarea repetitiva
+
+Este ejemplo demuestra cómo usar `Timer` y `TimerTask` para ejecutar una tarea de manera periódica en un hilo
+independiente. La tarea comienza tras un retraso inicial de 3 segundos y luego se repite cada 1 segundo.
+
+El bloque `if (count == 5)` sirve como condición de parada: cuando la tarea se ha ejecutado cinco veces, se llama a
+`timer.cancel()`, lo que detiene el hilo del `Timer` y cancela cualquier ejecución futura.
+
+````java
+
+@Slf4j
+public class RepeatedTaskExample {
+    public static void main(String[] args) {
+        Timer timer = new Timer();
+        TimerTask task = new TimerTask() {
+            int count = 0;
+
+            @Override
+            public void run() {
+                count++;
+                log.info("Ejecutando #{} (Hilo: {})", count, Thread.currentThread().getName());
+                if (count == 5) {
+                    log.info("Se ha alcanzado el límite. Cancelando el temporizador...");
+                    timer.cancel(); // Detiene todas las tareas programadas
+                }
+            }
+        };
+
+        // Ejecuta después de 3 segundos, repite cada 1 segundo.
+        timer.schedule(task, 3000, 1000);
+
+        log.info("Tarea programada. Esperando...");
+    }
+}
+````
+
+````bash
+13:16:35.710 [main] INFO dev.magadiflo.app.timer.RepeatedTaskExample -- Tarea programada. Esperando...
+13:16:38.717 [Timer-0] INFO dev.magadiflo.app.timer.RepeatedTaskExample -- Ejecutando #1 (Hilo: Timer-0)
+13:16:39.718 [Timer-0] INFO dev.magadiflo.app.timer.RepeatedTaskExample -- Ejecutando #2 (Hilo: Timer-0)
+13:16:40.733 [Timer-0] INFO dev.magadiflo.app.timer.RepeatedTaskExample -- Ejecutando #3 (Hilo: Timer-0)
+13:16:41.734 [Timer-0] INFO dev.magadiflo.app.timer.RepeatedTaskExample -- Ejecutando #4 (Hilo: Timer-0)
+13:16:42.750 [Timer-0] INFO dev.magadiflo.app.timer.RepeatedTaskExample -- Ejecutando #5 (Hilo: Timer-0)
+13:16:42.750 [Timer-0] INFO dev.magadiflo.app.timer.RepeatedTaskExample -- Se ha alcanzado el límite. Cancelando el temporizador... 
+````
+
+En resumen, este patrón muestra cómo crear tareas recurrentes controladas con `Timer`, una herramienta útil para
+automatizar acciones repetitivas o programar tareas temporales simples sin gestionar manualmente los hilos. ⏱️💡
+
+### ⚠️ Limitaciones de Timer
+
+Aunque `Timer` y `TimerTask` son útiles para aprender concurrencia, tienen ciertas limitaciones:
+
+| Problema                     | Descripción                                                                                        |
+|------------------------------|----------------------------------------------------------------------------------------------------|
+| 🚫 Un solo hilo              | Todas las tareas comparten el mismo hilo. Si una se bloquea, **todas se retrasan**.                |
+| 💥 Excepciones sin controlar | Si una tarea lanza una excepción no controlada, **el hilo del Timer muere**, cancelando las demás. |
+| 🧵 Poco flexible             | No permite gestionar fácilmente varios hilos o reintentos.                                         |
+
+Por estas razones, en sistemas más complejos se recomienda usar `ScheduledExecutorService`, que es más robusto y
+flexible.
+
+### ✅ Conclusión
+
+`Timer` y `TimerTask` son herramientas sencillas para programar tareas con retardo o ejecución periódica.
+Son ideales para entender el concepto de `programación temporal y ejecución en segundo plano`, aunque en entornos
+modernos suelen reemplazarse por las APIs de `java.util.concurrent`.
