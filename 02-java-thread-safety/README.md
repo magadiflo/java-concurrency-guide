@@ -45,9 +45,8 @@ Si un hilo escribe `x = 10;`, ningún otro hilo verá un valor parcial o incorre
 Una operación `no atómica` es aquella que el procesador tiene que descomponer en `múltiples pasos` o
 `instrucciones separadas`.
 
-En el ejemplo, `count++` o `x = x + 1`, es el caso clásico de una operación `no atómica` en Java, ya que se compone de
-al
-menos `tres pasos` a nivel de la máquina virtual (JVM):
+En el ejemplo, `count++` o `x = x + 1` es una operación compuesta, es el caso clásico de una operación `no atómica` en
+Java, ya que se compone de al menos `tres pasos` a nivel de la máquina virtual (JVM):
 
 1. `Leer`: El hilo lee el valor actual de count desde la memoria principal o caché.
 2. `Modificar`: El hilo calcula el nuevo valor (count + 1).
@@ -84,3 +83,126 @@ el valor final será 11 (perdiendo un incremento), aunque la variable sea `volat
 
 Por esta razón, para operaciones compuestas que modifican el estado (como incrementar contadores), se requiere
 `sincronización adicional` (usando bloques `synchronized` o clases atómicas como `AtomicInteger`).
+
+### 🧱 Ejemplo `sin volatile`
+
+En este ejemplo, un hilo cambia una variable `running` a `false`, pero el otro hilo nunca ve el cambio, quedando
+atrapado en un bucle infinito:
+
+````java
+
+@Slf4j
+public class WithoutVolatileExample {
+
+    private static boolean running = true; // No es volatile
+
+    public static void main(String[] args) throws InterruptedException {
+        Runnable task = () -> {
+            log.info("Hilo de trabajo iniciado...");
+            while (running) {
+                // Bucle de espera activa
+            }
+            log.info("El hilo de trabajo se ha detenido");
+        };
+        Thread thread = new Thread(task);
+        thread.start();
+
+        Thread.sleep(Duration.ofSeconds(2));
+        log.info("Cambiando el valor de la variable \"running\" a false...");
+        running = false; // El cambio puede no ser visible
+    }
+}
+````
+
+El mensaje `"El hilo de trabajo se ha detenido"` nunca aparece porque el hilo `Thread-0` sigue usando su copia local de
+`running = true`.
+
+````bash
+23:25:18.144 [Thread-0] INFO dev.magadiflo.app.volatilekeyword.WithoutVolatileExample -- Hilo de trabajo iniciado...
+23:25:20.144 [main] INFO dev.magadiflo.app.volatilekeyword.WithoutVolatileExample -- Cambiando el valor de la variable "running" a false... 
+````
+
+### ✅ Ejemplo con volatile
+
+Ahora, si marcamos la variable como `volatile`, garantizamos que cualquier cambio sea visible inmediatamente:
+
+````java
+
+@Slf4j
+public class WithVolatileExample {
+
+    private static volatile boolean running = true; // Visibilidad garantizada
+
+    public static void main(String[] args) throws InterruptedException {
+        Runnable task = () -> {
+            log.info("Hilo de trabajo iniciado...");
+            while (running) {
+                // Bucle de espera activa
+            }
+            log.info("El hilo de trabajo se ha detenido");
+        };
+        Thread thread = new Thread(task);
+        thread.start();
+
+        Thread.sleep(Duration.ofSeconds(2));
+        log.info("Cambiando el valor de la variable \"running\" a false...");
+        running = false; // Se propaga a todos los hilos
+    }
+}
+````
+
+````bash
+23:30:33.932 [Thread-0] INFO dev.magadiflo.app.volatilekeyword.WithVolatileExample -- Hilo de trabajo iniciado...
+23:30:35.940 [main] INFO dev.magadiflo.app.volatilekeyword.WithVolatileExample -- Cambiando el valor de la variable "running" a false...
+23:30:35.940 [Thread-0] INFO dev.magadiflo.app.volatilekeyword.WithVolatileExample -- El hilo de trabajo se ha detenido 
+````
+
+### 🔍 Explicación técnica
+
+Cuando una variable se declara `volatile`:
+
+1. Lecturas y escrituras se hacen `siempre desde la memoria principal`.
+2. Se inserta una `barrera de memoria (memory barrier)` que impide que el compilador o la CPU reordenen las operaciones
+   alrededor de esa variable.
+3. Cada hilo `ve el valor más reciente` sin depender de cachés locales o registros.
+
+| Tipo de garantía       | `volatile`                     | `synchronized`               |
+|------------------------|--------------------------------|------------------------------|
+| Visibilidad de memoria | ✅ Sí                           | ✅ Sí                         |
+| Atomicidad             | ❌ No                           | ✅ Sí                         |
+| Bloqueo de otros hilos | ❌ No                           | ✅ Sí                         |
+| Performance            | ⚡ Alta                         | 🧱 Más costosa               |
+| Uso ideal              | Variables de control o “flags” | Secciones críticas de código |
+
+### 🧭 Cuándo usar volatile
+
+Usa `volatile` cuando:
+
+- La variable `no depende de su valor anterior` (es decir, la operación de escritura no implica leer el valor previo,
+  como lo haría `count++`).
+- Es utilizada `para señalizar un estado` o `detener un hilo` (como un `flag`).
+- No necesitas realizar operaciones compuestas sobre ella.
+- `Garantía Adicional (Ordenamiento)`: Quieres asegurar que las lecturas y escrituras en esta variable se sincronicen
+  con las de otras variables, estableciendo una relación de `happens-before` (es decir, garantiza que todas las
+  operaciones antes de una escritura `volatile` sean visibles antes de esa escritura).
+
+Ejemplo Típico (`flag` de estado):
+
+````java
+private volatile boolean isRunning = true;
+````
+
+### 🚫 Cuándo no usar volatile
+
+No lo uses para operaciones donde la modificación de la variable es `no atómica` (depende del valor actual):
+
+````
+volatile int count = 0;
+count++; // ❌ No es thread-safe (No atómico: Lectura -> Modificación -> Escritura)
+````
+
+En esos casos, usa:
+
+- `synchronized`: Para proteger bloques de código completos que contengan operaciones no atómicas.
+- `Clases Atómicas`: `AtomicInteger`, `AtomicLong`, etc., del paquete `java.util.concurrent.atomic`, que garantizan
+  atomicidad para operaciones comunes como el incremento.
