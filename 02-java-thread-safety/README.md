@@ -298,10 +298,39 @@ public final class ImmutablePoint {
 
 ### 🛡️ Inmutabilidad con colecciones (Copias defensivas)
 
-A veces tu objeto contiene una lista, mapa o conjunto. Si los expones directamente estás frito, porque alguien podría
-modificarlos desde afuera.
+Cuando hablamos de inmutabilidad, solemos pensar en objetos que no exponen setters ni permiten cambiar su estado interno
+después de ser creados. Todo esto funciona muy bien con tipos inmutables como `String` o wrappers (`Integer`, `Long`).
+El lío aparece cuando el objeto contiene colecciones.
 
-#### Solución: `copy on write`
+Una colección como `List`, `Set` o `Map` `es mutable por diseño`. Incluso si sus elementos son inmutables, la estructura
+sí puede cambiar. Esa mutabilidad estructural implica que alguien podría:
+
+- Agregar elementos
+- Eliminar elementos
+- Ordenarlos
+- Limpiarlos
+- Reemplazarlos
+
+Si tu clase inmutable expone internamente una colección mutable, cualquiera puede modificarla desde afuera. Eso te rompe
+el contrato de inmutabilidad de forma silenciosa y peligrosa.
+
+#### ❌ ¿Por qué pasa esto?
+
+Porque la inmutabilidad del objeto protege la `referencia`, no el `contenido`. Tu campo es `final`, lo cual evita
+que sea reasignado… aunque el objeto referenciado siga siendo mutable.
+
+#### ✔️ Solución: copia defensiva (`copy on write`)
+
+Java ofrece un mecanismo elegante y seguro cuando necesitas proteger colecciones internas: `List.copyOf()`,
+`Set.copyOf()` y `Map.copyOf()`.
+
+Estas funciones:
+
+- Crean una copia inmodificable de la colección dada.
+- Aíslan tu estado interno.
+- Impiden que modificaciones externas se cuelen dentro de tu objeto.
+
+Este patrón se conoce como `defensive copy` y es una práctica clásica en diseño de objetos inmutables.
 
 ````java
 
@@ -353,7 +382,8 @@ respetando su orden de iteración. La colección de origen no puede ser nula ni 
 Si esa colección cambia después, la lista devuelta `no reflejará esos cambios`, porque es una copia independiente y,
 además, no permite modificaciones. Ahora ningún hilo podrá modificar tus roles internos.
 
-La copia defensiva mantiene tu objeto verdaderamente inmutable.
+Aunque modifiques la lista original, la copia interna del objeto permanece intocable. Con eso garantizas que tu objeto
+`permanezca verdaderamente inmutable`, incluso frente a colecciones que nacieron para ser cambiadas.
 
 ````bash
 20:29:12.906 [main] INFO dev.magadiflo.app.immutability.ImmutableUser -- Objeto inicial: ImmutableUser{name='Milagros', roles=[USER]}
@@ -425,6 +455,93 @@ El problema está clarísimo: si la lista original cambia, el objeto cambia tamb
 20:25:26.816 [main] INFO dev.magadiflo.app.immutability.UnsafeUser -- Objeto final: UnsafeUser{name='Milagros', roles=[USER, ADMIN]} 
 ````
 
+### 🔥 Inmutabilidad en Records: Verdadera vs. Aparente
+
+Un `record` es `inmutable por diseño`… excepto cuando NO lo es. Y ese “excepto” aparece justo cuando metemos dentro
+tipos mutables, como una `List`, `Map`, `Set`, etc.
+
+La inmutabilidad del record te protege del cambio de referencias, pero `no te protege del contenido mutable`.
+Exactamente el mismo problema que tuvimos con las clases normales.
+
+Vamos directo a los ejemplos:
+
+1. Un `record` peligroso porque `no usa copia defensiva`.
+2. Un `record` verdaderamente inmutable porque usa `List.copyOf(...)`.
+
+### 🔍 Record con colección mutable (peligroso)
+
+````java
+
+@Slf4j
+public class RecordUnsafeDemo {
+
+    record UserRecord(String name, List<String> roles) {
+    }
+
+    public static void main(String[] args) {
+        List<String> externalRoles = new ArrayList<>();
+        externalRoles.add("USER");
+
+        UserRecord userRecord = new UserRecord("Milagros", externalRoles);
+        log.info("Objeto inicial: {}", userRecord);
+
+        // Parecería que es inmutable... pero
+        externalRoles.add("ADMIN"); // modificamos la lista por fuera
+
+        // La clase "inmutable" no lo era en realidad
+        log.info("Objeto final: {}", userRecord); // La "inmutabilidad" quedó destruida.
+    }
+}
+````
+
+📌 El problema está clarísimo: El `record` protege los campos, pero no el contenido mutable de esos campos.
+
+````bash
+20:50:28.534 [main] INFO dev.magadiflo.app.immutability.RecordUnsafeDemo -- Objeto inicial: UserRecord[name=Milagros, roles=[USER]]
+20:50:28.566 [main] INFO dev.magadiflo.app.immutability.RecordUnsafeDemo -- Objeto final: UserRecord[name=Milagros, roles=[USER, ADMIN]] 
+````
+
+### 🛡️ Record con copia defensiva (seguro y 100% inmutable)
+
+La solución es idéntica a lo que ya aprendiste: usar `List.copyOf(...)` dentro del canonical constructor.
+
+````java
+
+@Slf4j
+public class RecordSafeDemo {
+
+    /**
+     * Record realmente inmutable.
+     * Se hace copia defensiva de la lista.
+     */
+    record UserRecord(String name, List<String> roles) {
+        UserRecord(String name, List<String> roles) {
+            this.name = name;
+            this.roles = List.copyOf(roles); // Copia defensiva + lista inmodificable
+        }
+    }
+
+    public static void main(String[] args) {
+        List<String> externalRoles = new ArrayList<>();
+        externalRoles.add("USER");
+
+        UserRecord userRecord = new UserRecord("Milagros", externalRoles);
+        log.info("Objeto inicial: {}", userRecord);
+
+        externalRoles.add("ADMIN"); // intentamos afectar el record
+
+        log.info("Objeto final: {}", userRecord); // Ahora sí, el record es verdaderamente inmutable.
+    }
+}
+````
+
+Miremos el mismo escenario, pero ahora protegido:
+
+````bash
+20:55:52.798 [main] INFO dev.magadiflo.app.immutability.RecordSafeDemo -- Objeto inicial: UserRecord[name=Milagros, roles=[USER]]
+20:55:52.830 [main] INFO dev.magadiflo.app.immutability.RecordSafeDemo -- Objeto final: UserRecord[name=Milagros, roles=[USER]] 
+````
+
 ### 🚀 Beneficios potentes de la inmutabilidad
 
 | Beneficio                             | Descripción                                           |
@@ -434,6 +551,17 @@ El problema está clarísimo: si la lista original cambia, el objeto cambia tamb
 | **Cacheable**                         | Se pueden guardar instancias compartidas sin miedo.   |
 | **Ideal para concurrencia funcional** | Muy usado en programación reactiva y paralela.        |
 | **Evita bugs sutiles**                | Muchas condiciones de carrera desaparecen por diseño. |
+
+### 📌 La idea central
+
+El `record` te da:
+
+- Campos finales
+- Constructor automático
+- equals/hashCode
+- No setters
+
+Pero `no te protege de estructuras mutables internas`. Para eso siempre necesitas una `copia defensiva`.
 
 ### 💬 Reflexión corta y útil
 
