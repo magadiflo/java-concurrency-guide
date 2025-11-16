@@ -206,3 +206,244 @@ En esos casos, usa:
 - `synchronized`: Para proteger bloques de código completos que contengan operaciones no atómicas.
 - `Clases Atómicas`: `AtomicInteger`, `AtomicLong`, etc., del paquete `java.util.concurrent.atomic`, que garantizan
   atomicidad para operaciones comunes como el incremento.
+
+## 🧵 La inmutabilidad (Immutability)
+
+La `inmutabilidad` es uno de los enfoques más elegantes y seguros para lograr `concurrencia segura en Java`.
+Consiste en `diseñar objetos cuyos valores no cambian jamás después de ser creados`. Esta simple idea elimina de raíz
+muchos problemas típicos del código concurrente.
+
+### 🧊 ¿Qué es un objeto inmutable?
+
+Un objeto es `inmutable` cuando:
+
+1. Su estado interno `se fija en el constructor`.
+2. No tiene métodos que modifiquen ese estado.
+3. Todos sus campos son `final`.
+4. No expone referencias modificables a estructuras internas (por ejemplo, listas).
+5. Si contiene objetos mutables, realiza `copias defensivas` para proteger su interior.
+
+📌 Cuando un objeto es inmutable, `no importa cuántos hilos lo usen a la vez`, porque ninguno puede modificarlo… solo
+leerlo.
+
+### 🎯 ¿Por qué la inmutabilidad es segura ante concurrencia?
+
+La raíz de casi todos los problemas con hilos es que dos o más hilos intentan modificar el mismo estado compartido.
+Si el estado no se puede modificar, entonces:
+
+- No hay condiciones de carrera.
+- No hay que sincronizar.
+- No hay riesgo de inconsistencias.
+- No hay necesidad de `volatile`.
+- No hay bloqueos ni deadlocks.
+
+Es como darle a cada hilo una roca: pueden tocarla, observarla, patearla… pero nunca podrán cambiarla. Cero drama.
+
+### 📘 Reglas básicas para crear objetos inmutables en Java
+
+| Requisito                                    | Descripción                                                |
+|----------------------------------------------|------------------------------------------------------------|
+| **Declarar la clase como `final`**           | Evita que alguien la extienda y cambie el comportamiento.  |
+| **Campos privados y `final`**                | Asegura que los valores se asignan una sola vez.           |
+| **Sin setters**                              | Prohibido cambiar el estado después del constructor.       |
+| **Copias defensivas**                        | Si guardas objetos mutables, duplícalos.                   |
+| **Devuelve copias, no referencias directas** | Evita que otros hilos modifiquen tus estructuras internas. |
+
+### 🧱 Ejemplo: clase 100% inmutable
+
+````java
+/**
+ * Clase inmutable que representa un punto 2D.
+ * Los valores se establecen en el constructor y nunca cambian.
+ */
+@Slf4j
+public final class ImmutablePoint {
+    private final int x;
+    private final int y;
+
+
+    public ImmutablePoint(int x, int y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    // Solo getters. No existe forma de cambiar el estado
+    public int getX() {
+        return x;
+    }
+
+    public int getY() {
+        return y;
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("ImmutablePoint{");
+        sb.append("x=").append(x);
+        sb.append(", y=").append(y);
+        sb.append('}');
+        return sb.toString();
+    }
+
+    public static void main(String[] args) {
+        ImmutablePoint point = new ImmutablePoint(5, 10);
+        log.info("{}", point);
+    }
+}
+````
+
+````bash
+20:02:26.565 [main] INFO dev.magadiflo.app.immutability.ImmutablePoint -- ImmutablePoint{x=5, y=10} 
+````
+
+### 🛡️ Inmutabilidad con colecciones (Copias defensivas)
+
+A veces tu objeto contiene una lista, mapa o conjunto. Si los expones directamente estás frito, porque alguien podría
+modificarlos desde afuera.
+
+#### Solución: `copy on write`
+
+````java
+
+/**
+ * Clase inmutable que protege su lista interna.
+ */
+@Slf4j
+public final class ImmutableUser {
+    private final String name;
+    private final List<String> roles;
+
+    public ImmutableUser(String name, List<String> roles) {
+        this.name = name;
+        this.roles = List.copyOf(roles); // copia defensiva e inmodificable
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public List<String> getRoles() {
+        return roles; // seguro, es inmutable
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("ImmutableUser{");
+        sb.append("name='").append(name).append('\'');
+        sb.append(", roles=").append(roles);
+        sb.append('}');
+        return sb.toString();
+    }
+
+    public static void main(String[] args) {
+        List<String> externalRoles = new ArrayList<>();
+        externalRoles.add("USER");
+
+        ImmutableUser user = new ImmutableUser("Milagros", externalRoles);
+        log.info("Objeto inicial: {}", user);
+
+        externalRoles.add("ADMIN"); // cambiamos la lista original
+        log.info("Objeto final: {}", user); // La lista interna NO se ve afectada
+    }
+}
+````
+
+`List.copyOf(...)` devuelve una `lista inmodificable` que contiene los mismos elementos de la colección dada,
+respetando su orden de iteración. La colección de origen no puede ser nula ni contener elementos nulos.
+Si esa colección cambia después, la lista devuelta `no reflejará esos cambios`, porque es una copia independiente y,
+además, no permite modificaciones. Ahora ningún hilo podrá modificar tus roles internos.
+
+La copia defensiva mantiene tu objeto verdaderamente inmutable.
+
+````bash
+20:29:12.906 [main] INFO dev.magadiflo.app.immutability.ImmutableUser -- Objeto inicial: ImmutableUser{name='Milagros', roles=[USER]}
+20:29:12.911 [main] INFO dev.magadiflo.app.immutability.ImmutableUser -- Objeto final: ImmutableUser{name='Milagros', roles=[USER]}
+````
+
+### 🧨 Por qué es peligroso no usar List.copyOf(...)
+
+Este ejemplo muestra cómo, si no hacemos una copia defensiva, nuestro objeto "supuestamente inmutable" deja de serlo
+sin que nos demos cuenta.
+
+#### ❌ Caso inseguro (sin copia defensiva)
+
+````java
+
+/**
+ * Clase que *parece* inmutable, pero no lo es.
+ */
+
+@Slf4j
+public final class UnsafeUser {
+
+    private final String name;
+    private final List<String> roles; // referencia directa a lista externa
+
+    public UnsafeUser(String name, List<String> roles) {
+        this.name = name;
+        this.roles = roles; // peligro: guardamos la referencia original
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public List<String> getRoles() {
+        return roles; // se devuelve tal cual, sin protección
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("UnsafeUser{");
+        sb.append("name='").append(name).append('\'');
+        sb.append(", roles=").append(roles);
+        sb.append('}');
+        return sb.toString();
+    }
+
+    public static void main(String[] args) {
+        List<String> externalRoles = new ArrayList<>();
+        externalRoles.add("USER");
+
+        UnsafeUser user = new UnsafeUser("Milagros", externalRoles);
+        log.info("Objeto inicial: {}", user);
+
+        // La clase *parece* inmutable… pero como no usamos el List.copyOf(...),
+        // podemos modificar la lista desde afuera. Modificando roles....
+        externalRoles.add("ADMIN"); // modificamos la lista original
+
+        // La clase "inmutable" no lo era en realidad
+        log.info("Objeto final: {}", user);
+    }
+}
+````
+
+El problema está clarísimo: si la lista original cambia, el objeto cambia también, porque nunca hicimos una copia.
+
+````bash
+20:25:26.810 [main] INFO dev.magadiflo.app.immutability.UnsafeUser -- Objeto inicial: UnsafeUser{name='Milagros', roles=[USER]}
+20:25:26.816 [main] INFO dev.magadiflo.app.immutability.UnsafeUser -- Objeto final: UnsafeUser{name='Milagros', roles=[USER, ADMIN]} 
+````
+
+### 🚀 Beneficios potentes de la inmutabilidad
+
+| Beneficio                             | Descripción                                           |
+|---------------------------------------|-------------------------------------------------------|
+| **Thread-safe por naturaleza**        | No hay posibilidad de modificación concurrente.       |
+| **Fácil de razonar**                  | Si no cambia, no hay que pensar en sincronización.    |
+| **Cacheable**                         | Se pueden guardar instancias compartidas sin miedo.   |
+| **Ideal para concurrencia funcional** | Muy usado en programación reactiva y paralela.        |
+| **Evita bugs sutiles**                | Muchas condiciones de carrera desaparecen por diseño. |
+
+### 💬 Reflexión corta y útil
+
+La inmutabilidad es casi como escribir código a prueba de multiverso: no importa cuántas ejecuciones paralelas haya, el
+estado siempre será el mismo. Es una de las técnicas más recomendadas para evitar dolores de cabeza con concurrencia.
+
+Si puedes diseñar algo como inmutable, casi siempre conviene hacerlo.
+
+### 📌 Conclusión
+
+> El concepto de `inmutabilidad` es uno de los pilares fundamentales para alcanzar seguridad en la concurrencia
+> sin mecanismos extra de sincronización. Tener objetos cuyos valores nunca cambian convierte a tu aplicación en un
+> entorno más estable, más fácil de razonar y mucho menos propenso a errores.
