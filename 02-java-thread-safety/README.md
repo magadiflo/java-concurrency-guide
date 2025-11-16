@@ -542,6 +542,158 @@ Miremos el mismo escenario, pero ahora protegido:
 20:55:52.830 [main] INFO dev.magadiflo.app.immutability.RecordSafeDemo -- Objeto final: UserRecord[name=Milagros, roles=[USER]] 
 ````
 
+### 🧱 Inmutabilidad con objetos mutables internos
+
+> Inmutabilidad superficial vs. profunda `(Shallow vs Deep Immutability)`
+
+Cuando un record recibe como atributo un objeto mutable, como una clase con setters, el record deja de ser
+verdaderamente inmutable. El motivo es simple:
+
+- ✔️ El record impide cambiar la referencia del objeto…
+- ❌ …pero no impide modificar el contenido (estado) del objeto al que apunta esa referencia.
+
+### 🔥 Ejemplo de “falsa inmutabilidad”
+
+````java
+
+@Slf4j
+public class MutableObjectInRecordDemo {
+
+    record UserRecord(String username, Role role) {
+
+    }
+
+    static class Role {
+        private String name;
+
+        public Role(String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String toString() {
+            final StringBuilder sb = new StringBuilder("Role{");
+            sb.append("name='").append(name).append('\'');
+            sb.append('}');
+            return sb.toString();
+        }
+    }
+
+    public static void main(String[] args) {
+        Role role = new Role("USER");
+        UserRecord record = new UserRecord("Milagros", role);
+        log.info("Antes: {}", record);
+
+        role.setName("ADMIN");
+        log.info("Después: {}", record);
+    }
+}
+````
+
+````bash
+13:10:31.315 [main] INFO dev.magadiflo.app.immutability.MutableObjectInRecordDemo -- Antes: UserRecord[username=Milagros, role=Role{name='USER'}]
+13:10:31.353 [main] INFO dev.magadiflo.app.immutability.MutableObjectInRecordDemo -- Después: UserRecord[username=Milagros, role=Role{name='ADMIN'}] 
+````
+
+#### 🚨 ¿Qué pasó aquí?
+
+Aunque `UserRecord` es inmutable, su campo `Role` no lo es. La referencia no cambia, pero el contenido sí.
+Esto se llama:
+
+> ❌ Inmutabilidad superficial (shallow immutability)
+
+Tu record parece inmutable, pero en realidad su estado puede cambiar “por dentro”.
+
+### 🛡️ ¿Cómo lograr inmutabilidad real si recibes un objeto mutable?
+
+Tienes dos enfoques válidos:
+
+#### ✔️ Opción A: Hacer el objeto interno inmutable (la ideal)
+
+Convierte `Role` en un `record`:
+
+````java
+record Role(String name) {
+}
+````
+
+Si haces eso, automáticamente:
+
+- `Role` no tiene setters.
+- Su estado no puede cambiar.
+- `UserRecord` será 100% inmutable.
+
+Es la opción recomendada en el mundo real.
+
+#### ✔️ Opción B: Hacer copia defensiva profunda en el constructor
+
+Cuando no puedes modificar el objeto original (viene de otra librería, es legacy, etc.), debes proteger tu record
+copiando manualmente el objeto:
+
+````java
+
+@Slf4j
+public class ImmutableObjectInRecordDemo {
+
+    record UserRecord(String username, Role role) {
+        UserRecord {
+            role = new Role(role.getName()); // copia profunda
+        }
+    }
+
+    static class Role {
+        private String name;
+
+        public Role(String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String toString() {
+            final StringBuilder sb = new StringBuilder("Role{");
+            sb.append("name='").append(name).append('\'');
+            sb.append('}');
+            return sb.toString();
+        }
+    }
+
+    public static void main(String[] args) {
+        Role role = new Role("USER");
+        UserRecord record = new UserRecord("Milagros", role);
+        log.info("Antes: {}", record);
+
+        role.setName("ADMIN");
+        log.info("Después: {}", record);
+    }
+}
+````
+
+````bash
+13:16:33.178 [main] INFO dev.magadiflo.app.immutability.ImmutableObjectInRecordDemo -- Antes: UserRecord[username=Milagros, role=Role{name='USER'}]
+13:16:33.218 [main] INFO dev.magadiflo.app.immutability.ImmutableObjectInRecordDemo -- Después: UserRecord[username=Milagros, role=Role{name='USER'}]
+````
+
+- Si un record contiene objetos mutables, su inmutabilidad es solo superficial.
+- Para lograr inmutabilidad real necesitas:
+    - Objetos internos también inmutables,
+    - O copias defensivas profundas del estado mutable.
+
 ### 🚀 Beneficios potentes de la inmutabilidad
 
 | Beneficio                             | Descripción                                           |
