@@ -727,3 +727,172 @@ Si puedes diseñar algo como inmutable, casi siempre conviene hacerlo.
 > El concepto de `inmutabilidad` es uno de los pilares fundamentales para alcanzar seguridad en la concurrencia
 > sin mecanismos extra de sincronización. Tener objetos cuyos valores nunca cambian convierte a tu aplicación en un
 > entorno más estable, más fácil de razonar y mucho menos propenso a errores.
+
+## 🧵 Thread-Safe Collections en Java
+
+Las `colecciones thread-safe` permiten que múltiples hilos accedan y modifiquen estructuras de datos de forma
+concurrente sin corromper su estado interno. Java ofrece varias implementaciones diseñadas para distintos patrones
+de acceso, niveles de contención y casos de uso reales.
+
+A continuación tienes las más usadas en proyectos profesionales, cuándo conviene usarlas y ejemplos prácticos
+típicos de sistemas backend.
+
+### 🗺️ ¿Por qué existen las colecciones thread-safe?
+
+En una app concurrente, varias operaciones aparentemente simples (como `map.get(k)` seguido de `map.put(k, v)`)
+dejan de ser atómicas. Si una estructura no está protegida, dos hilos pueden pisarse y provocar:
+
+- Estados inconsistentes
+- Lecturas sucias
+- Valores perdidos
+- `ConcurrentModificationException`
+
+Las `colecciones thread-safe` se encargan de `proteger sus operaciones internas` mediante estrategias como
+`locks finos`, `copy-on-write` o `segmentación.`
+
+#### ⚛️ Nota Adicional: ¿Qué Significa "Atómico"?
+
+> En el contexto de la programación concurrente (hilos), una operación es `atómica` si es `indivisible` e
+`ininterrumpible`.
+>
+> - `Indivisible`: Significa que la operación se ejecuta de principio a fin como una única unidad lógica.
+> - `Riesgo de Concurrencia`: Una operación que `no es atómica` (como el ejemplo de `map.get()` seguido de `map.put()`)
+    es susceptible a **condiciones de carrera**. Esto ocurre porque un hilo puede ser interrumpido en medio de los pasos
+    internos de la operación (ej. después de leer, pero antes de escribir), permitiendo que otro hilo interfiera y vea o
+    modifique un **estado inconsistente**.
+>
+> Por lo tanto, una colección se vuelve `thread-safe` al garantizar que sus operaciones críticas actúen de manera
+> `atómica` (completas y sin interrupciones visibles) a través del uso de mecanismos de sincronización.
+
+### 📚 Colecciones thread-safe más usadas en el mundo real
+
+### 🧩 1. ConcurrentHashMap
+
+El `ConcurrentHashMap` es la `implementación estándar de interfaz Map para entornos concurrentes` en Java
+(desde Java 5/6), diseñada para ofrecer un rendimiento superior bajo alta carga de hilos en comparación con
+alternativas más antiguas y limitantes como `Hashtable` o `Collections.synchronizedMap(map)`.
+
+Se utiliza para manejar `mapas seguros en entornos concurrentes`, permitiendo que múltiples hilos accedan y
+modifiquen la estructura `sin necesidad de bloquear todo el mapa`.
+
+> 📌 A diferencia de `HashMap`, que `no es seguro para hilos`, y de `Hashtable`, que sincroniza todo el mapa,
+> `ConcurrentHashMap` ofrece un `equilibrio` entre `seguridad y rendimiento`.
+
+#### ⭐ Core: Escalabilidad y Concurrencia sin Bloqueos Globales
+
+La principal fortaleza de esta estructura es su capacidad para **manejar miles de lecturas y escrituras simultáneas con
+una contención mínima**. Lo logra al evitar el uso de un único `lock` (bloqueo) que proteja toda la estructura de datos.
+
+#### ⚙️ Características principales
+
+- 🔒 `Thread-safe`: Permite acceso concurrente sin necesidad de sincronización externa.
+- 📊 `Segmentación interna`: Divide la estructura en segmentos para reducir la contención de bloqueos.
+- 🚀 `Alto rendimiento`: Mejora la concurrencia al permitir múltiples operaciones simultáneas.
+- 🧩 `Operaciones atómicas`: Métodos como `putIfAbsent`, `remove(key, value)` y `replace` garantizan atomicidad.
+- ⚠️ `No admite valores nulos`: Ni claves ni valores pueden ser `null`.
+
+#### ⚠️ Notas técnicas
+
+- `ConcurrentHashMap` `no bloquea todo el mapa`, solo las partes necesarias, lo que mejora la concurrencia.
+- Es más eficiente que `Collections.synchronizedMap()` en escenarios con muchos hilos.
+- No garantiza orden en la iteración (como `HashMap`).
+- Para operaciones masivas, como `reduce` o `search`, ofrece métodos paralelos que aprovechan el `ForkJoinPool`.
+
+#### ❌ `HashMap` NO es thread-safe
+
+````java
+
+@Slf4j
+public class HashMapDemo {
+    public static void main(String[] args) throws InterruptedException {
+        Map<String, Integer> map = new HashMap<>();
+
+        Runnable task = () -> {
+            for (int i = 0; i < 1000; i++) {
+                String threadName = Thread.currentThread().getName().toLowerCase();
+                map.put(threadName + i, i);
+            }
+        };
+
+        Thread thread1 = new Thread(task);
+        Thread thread2 = new Thread(task);
+
+        thread1.start();
+        thread2.start();
+
+        thread1.join();
+        thread2.join();
+
+        log.info("Tamaño final del HashMap: {}", map.size());
+    }
+}
+````
+
+El resultado `no siempre será 2000`. Puede ser menor porque `HashMap`
+`no es seguro en concurrencia y puede corromperse`.
+
+````bash
+21:11:32.946 [main] INFO dev.magadiflo.app.threadsafecollections.HashMapDemo -- Tamaño final del HashMap: 1978
+````
+
+🔎 Resultado esperado vs real
+
+- `Esperado`: 2000 elementos (1000 por cada hilo).
+- `Real`: El tamaño suele ser menor y puede variar en cada ejecución.
+- Esto ocurre porque `HashMap` `no es seguro para hilos` → se producen condiciones de carrera y corrupción interna de
+  la estructura.
+
+#### ✅ `ConcurrentHashMap` SÍ es thread-safe
+
+````java
+
+@Slf4j
+public class ConcurrentHashMapDemo {
+    public static void main(String[] args) throws InterruptedException {
+        Map<String, Integer> map = new ConcurrentHashMap<>();
+
+        Runnable task = () -> {
+            for (int i = 0; i < 1000; i++) {
+                String threadName = Thread.currentThread().getName().toLowerCase();
+                map.put(threadName + i, i);
+            }
+        };
+
+        Thread thread1 = new Thread(task);
+        Thread thread2 = new Thread(task);
+
+        thread1.start();
+        thread2.start();
+
+        thread1.join();
+        thread2.join();
+
+        log.info("Tamaño final del HashMap: {}", map.size());
+    }
+}
+````
+
+El resultado `siempre será 2000`, porque `ConcurrentHashMap` `maneja la concurrencia correctamente`.
+
+````bash
+21:12:30.404 [main] INFO dev.magadiflo.app.threadsafecollections.ConcurrentHashMapDemo -- Tamaño final del HashMap: 2000
+````
+
+🔎 Resultado esperado vs real
+
+- `Esperado`: 2000 elementos.
+- `Real`: Siempre `2000 elementos`, porque `ConcurrentHashMap` maneja la concurrencia internamente y evita condiciones
+  de carrera.
+
+#### 📊 Comparación visual
+
+| Aspecto              | `HashMap`                   | `ConcurrentHashMap`              |
+|----------------------|-----------------------------|----------------------------------|
+| Seguridad en hilos   | ❌ No seguro                 | ✅ Seguro                         |
+| Rendimiento          | 🚀 Alto en un solo hilo     | ⚖️ Balanceado en múltiples hilos |
+| Resultado en ejemplo | Tamaño inconsistente        | Tamaño correcto (2000)           |
+| Uso recomendado      | Operaciones en un solo hilo | Entornos concurrentes            |
+
+- ⚠️ `HashMap` no es seguro en multihilo → condiciones de carrera.
+- ✅ `ConcurrentHashMap` garantiza consistencia en entornos concurrentes.
+- 📊 Usa `ConcurrentHashMap` cuando múltiples hilos accedan/modifiquen el mismo mapa.
