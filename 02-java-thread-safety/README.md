@@ -914,6 +914,23 @@ manera `atómica`, es decir, indivisible y libre de condiciones de carrera.
 - ✔️ Son thread-safe.
 - ✔️ Utilizan operaciones CAS (Compare-And-Swap) optimizadas por la JVM.
 
+### ⚙️ ¿Qué es Compare-And-Swap (CAS)?
+
+CAS es una instrucción atómica de CPU que funciona así:
+
+1. Lee el valor actual de una variable.
+2. Compara con un valor esperado.
+3. Si son iguales, escribe el nuevo valor.
+4. Si no lo son, no hace nada.
+
+Es una alternativa más rápida a los locks tradicionales.
+
+````bash
+compareAndSet(expectedValue, newValue)
+````
+
+💡 Si dos hilos chocan, CAS reintenta la operación, evitando bloqueos.
+
 ### 🧵 Principales clases atómicas en Java
 
 #### 1. `AtomicInteger`
@@ -1033,4 +1050,114 @@ public class FlagAtomicBoolean {
 20:16:21.846 [main] INFO dev.magadiflo.app.atomicclasses.FlagAtomicBoolean -- Valor final del flag: true 
 ````
 
+#### 4. `AtomicReference<T>`
 
+`AtomicReference<T>` permite manipular `objetos completos` de forma atómica, es decir, garantiza que la lectura
+y actualización de una referencia compartida entre múltiples hilos sea segura sin necesidad de usar `synchronized`.
+
+Es ideal en sistemas donde varios hilos necesitan intercambiar, actualizar, publicar o reemplazar un objeto de estado,
+como:
+
+- Estados de sesión.
+- Perfil de usuario.
+- Configuraciones compartidas.
+- Estados inmutables.
+- Implementaciones lock-free.
+
+📌 Ejemplo básico: Actualizar el perfil de usuario (Person) en un sistema concurrente
+
+Supongamos un sistema donde múltiples operaciones (hilos) pueden intentar actualizar datos del usuario simultáneamente:
+cambios de email, nombre, preferencias, etc.
+
+Usamos una clase inmutable `Person` para evitar problemas de consistencia, y un `AtomicReference<Person>` para
+actualizar el estado completo del usuario de manera segura.
+
+````java
+
+@Slf4j
+public class PersonAtomicReference {
+
+    record Person(String name, String email) {
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        // Estado inicial del usuario
+        AtomicReference<Person> userRef = new AtomicReference<>(new Person("Lesly", "lesly@gmail.com"));
+
+        // Tarea 1: Actualizar el email
+        Runnable taskEmail = () -> {
+            Person current;
+            Person updated;
+            do {
+                current = userRef.get();
+                updated = new Person(current.name(), "lesly.aguila@corporation.com");
+            } while (!userRef.compareAndSet(current, updated));
+
+            log.info("Email actualizado: {}, por el hilo: {}", userRef.get(), Thread.currentThread().getName());
+        };
+
+        // Tarea 2: Actualizar el nombre
+        Runnable taskName = () -> {
+            Person current;
+            Person updated;
+            do {
+                current = userRef.get();
+                updated = new Person("Lesly Águila", current.email());
+            } while (!userRef.compareAndSet(current, updated));
+
+            log.info("Nombre actualizado: {}, por el hilo: {}", userRef.get(), Thread.currentThread().getName());
+        };
+
+        Thread t1 = new Thread(taskEmail);
+        Thread t2 = new Thread(taskName);
+
+        t1.start();
+        t2.start();
+
+        t1.join();
+        t2.join();
+
+        log.info("Estado final del usuario: {}", userRef.get());
+    }
+}
+````
+
+✅ Revisión técnica del ejemplo
+
+- Usas `AtomicReference<Person>` para manejar un objeto inmutable (`record Person`), lo cual es una muy buena práctica:
+    - Los `record` en Java son inmutables, así que cada actualización crea una nueva instancia.
+    - Esto encaja perfectamente con el patrón de `compareAndSet`.
+- El bucle `do { ... } while (!compareAndSet(...))` asegura que:
+    - Si otro hilo modifica el valor en medio de la operación, el hilo actual vuelve a intentarlo con el nuevo estado.
+    - Esto evita condiciones de carrera y garantiza consistencia.
+- Los dos hilos que usan las tareas `taskEmail` y `taskName`. actualizan distintos atributos del objeto (email y name),
+  pero como el objeto es inmutable, cada actualización reemplaza la referencia completa de manera segura.
+- El log final muestra el estado del objeto después de ambas actualizaciones, confirmando que las operaciones fueron
+  atómicas y seguras.
+
+````bash
+23:37:55.590 [Thread-1] INFO dev.magadiflo.app.atomicclasses.PersonAtomicReference -- Nombre actualizado: Person[name=Lesly Águila, email=lesly@gmail.com], por el hilo: Thread-1
+23:37:55.590 [Thread-0] INFO dev.magadiflo.app.atomicclasses.PersonAtomicReference -- Email actualizado: Person[name=Lesly Águila, email=lesly.aguila@corporation.com], por el hilo: Thread-0
+23:37:55.629 [main] INFO dev.magadiflo.app.atomicclasses.PersonAtomicReference -- Estado final del usuario: Person[name=Lesly Águila, email=lesly.aguila@corporation.com] 
+````
+
+🧾 Explicación del resultado
+
+- Dos hilos intentan actualizar el mismo objeto compartido (`Person`).
+- Gracias a `compareAndSet`, cada hilo reintenta la operación si detecta que el valor cambió en medio del proceso.
+- El resultado final refleja ambas actualizaciones:
+    - El email fue cambiado por el primer hilo.
+    - El nombre fue cambiado por el segundo hilo.
+- El objeto final combina los cambios de ambos hilos de manera segura y consistente.
+
+### 🎯 Punto pedagógico
+
+Este ejemplo muestra cómo `AtomicReference` es ideal para manejar objetos inmutables compartidos en concurrencia. En
+lugar de usar bloqueos (`synchronized`), se aprovechan las operaciones atómicas para garantizar consistencia y evitar
+condiciones de carrera.
+
+### ✔️ Conclusión
+
+Las `clases atómicas` son fundamentales para escribir código concurrente eficiente en Java. Ofrecen operaciones seguras
+sin bloqueo y aprovechan instrucciones CPU optimizadas, permitiendo construir aplicaciones escalables sin la complejidad
+de los locks tradicionales.
