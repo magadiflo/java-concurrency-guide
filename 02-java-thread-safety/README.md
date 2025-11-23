@@ -913,3 +913,62 @@ manera `atómica`, es decir, indivisible y libre de condiciones de carrera.
 - ✔️ Mejoran el rendimiento en sistemas concurrentes.
 - ✔️ Son thread-safe.
 - ✔️ Utilizan operaciones CAS (Compare-And-Swap) optimizadas por la JVM.
+
+### 🧵 Principales clases atómicas en Java
+
+#### 1. AtomicInteger
+
+- Representa un entero (`int`) con operaciones atómicas.
+- Métodos comunes:
+    - `get()` – obtiene el valor actual.
+    - `set(value)` – establece un nuevo valor.
+    - `incrementAndGet()` – incrementa y devuelve el valor.
+    - `getAndIncrement()` – devuelve el valor y luego incrementa.
+    - `compareAndSet(expected, update)` – actualiza si el valor actual coincide con el esperado.
+
+📌 Ejemplo básico
+
+````java
+
+@Slf4j
+public class CounterAtomicInteger {
+
+    private static final AtomicInteger counter = new AtomicInteger(0);
+
+    public static void main(String[] args) throws InterruptedException {
+        Runnable task = () -> {
+            for (int i = 0; i < 1000; i++) {
+                counter.incrementAndGet();
+            }
+        };
+
+        Thread t1 = new Thread(task);
+        Thread t2 = new Thread(task);
+
+        t1.start();
+        t2.start();
+
+        t1.join();
+        t2.join();
+
+        log.info("Valor final: {}", counter.get());
+    }
+}
+````
+
+🧾 Explicación del resultado
+
+- Dos hilos (t1 y t2) ejecutan la misma tarea: incrementar el contador 1000 veces cada uno.
+- El método `incrementAndGet()` de `AtomicInteger` garantiza que cada incremento sea atómico, evitando condiciones de
+  carrera.
+- En total, se realizan 2000 incrementos (1000 por cada hilo).
+- El valor final mostrado en el log es 2000, lo que confirma que:
+    - No hubo pérdida de operaciones.
+    - No fue necesario usar synchronized ni bloqueos manuales.
+    - La clase AtomicInteger asegura consistencia en entornos concurrentes.
+
+````bash
+20:05:48.035 [main] INFO dev.magadiflo.app.atomicclasses.CounterAtomicInteger -- Valor final: 2000
+````
+
+> 💡 `Nota`: Este código es seguro sin necesidad de sincronización manual gracias a las operaciones atómicas.
