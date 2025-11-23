@@ -972,3 +972,8 @@ public class CounterAtomicInteger {
 ````
 
 > 💡 `Nota`: Este código es seguro sin necesidad de sincronización manual gracias a las operaciones atómicas.
+
+#### 2. AtomicLong
+
+Idéntico al AtomicInteger, pero para valores `long`. Útil en contadores de eventos, timestamps, ID generators, etc.
+
