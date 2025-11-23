@@ -916,7 +916,7 @@ manera `atómica`, es decir, indivisible y libre de condiciones de carrera.
 
 ### 🧵 Principales clases atómicas en Java
 
-#### 1. AtomicInteger
+#### 1. `AtomicInteger`
 
 - Representa un entero (`int`) con operaciones atómicas.
 - Métodos comunes:
@@ -973,7 +973,64 @@ public class CounterAtomicInteger {
 
 > 💡 `Nota`: Este código es seguro sin necesidad de sincronización manual gracias a las operaciones atómicas.
 
-#### 2. AtomicLong
+#### 2. `AtomicLong`
 
 Idéntico al AtomicInteger, pero para valores `long`. Útil en contadores de eventos, timestamps, ID generators, etc.
+
+#### 3. `AtomicBoolean`
+
+`AtomicBoolean` representa un valor booleano que puede ser actualizado de manera `atómica`. Es muy útil para
+implementar `switches de concurrencia`, `sistemas de flags` o `circuit breakers`, donde varios hilos necesitan leer
+y modificar un mismo estado sin bloqueos manuales.
+
+📌 Ejemplo básico
+
+````java
+
+@Slf4j
+public class FlagAtomicBoolean {
+
+    private static final AtomicBoolean flag = new AtomicBoolean(false);
+
+    public static void main(String[] args) throws InterruptedException {
+        Runnable task = () -> {
+            // Intentamos activar el flag solo si está en 'false'
+            if (flag.compareAndSet(false, true)) {
+                log.info("Hilo {} activó el flag", Thread.currentThread().getName());
+            } else {
+                log.info("Hilo {} no pudo activarlo", Thread.currentThread().getName());
+            }
+        };
+
+        Thread t1 = new Thread(task);
+        Thread t2 = new Thread(task);
+
+        t1.start();
+        t2.start();
+
+        t1.join();
+        t2.join();
+
+        log.info("Valor final del flag: {}", flag.get());
+    }
+}
+````
+
+> 💡 `Nota`: El método `compareAndSet(expect, update)` asegura que solo un hilo pueda cambiar el valor de
+> `false` a `true`. Los demás hilos que intenten hacerlo fallarán, garantizando consistencia sin necesidad de
+> `synchronized`.
+
+🧾 Explicación del resultado
+
+- Ambos hilos (`T1` y `T2`) intentan activar el flag.
+- Gracias a la operación atómica `compareAndSet`, solo uno de ellos logra cambiar el valor de `false` a `true`.
+- El otro hilo detecta que el valor ya fue cambiado y no puede modificarlo.
+- El valor final del flag es `true`, mostrando que la operación fue segura y consistente en concurrencia.
+
+````bash
+20:16:21.838 [Thread-1] INFO dev.magadiflo.app.atomicclasses.FlagAtomicBoolean -- Hilo Thread-1 no pudo activarlo
+20:16:21.838 [Thread-0] INFO dev.magadiflo.app.atomicclasses.FlagAtomicBoolean -- Hilo Thread-0 activó el flag
+20:16:21.846 [main] INFO dev.magadiflo.app.atomicclasses.FlagAtomicBoolean -- Valor final del flag: true 
+````
+
 
