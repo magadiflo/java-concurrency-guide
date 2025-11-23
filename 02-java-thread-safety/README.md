@@ -896,3 +896,20 @@ El resultado `siempre será 2000`, porque `ConcurrentHashMap` `maneja la concurr
 - ⚠️ `HashMap` no es seguro en multihilo → condiciones de carrera.
 - ✅ `ConcurrentHashMap` garantiza consistencia en entornos concurrentes.
 - 📊 Usa `ConcurrentHashMap` cuando múltiples hilos accedan/modifiquen el mismo mapa.
+
+## ⚛️ Atomic Classes en Java
+
+Las `Atomic Classes` pertenecen al paquete `java.util.concurrent.atomic` y proporcionan operaciones atómicas
+(indivisibles) que permiten trabajar con variables compartidas entre múltiples hilos sin necesidad de usar
+`synchronized` ni `locks` explícitos.
+
+Estas clases permiten realizar operaciones como `incrementar`, `decrementar`, `comparar` y `actualizar valores` de
+manera `atómica`, es decir, indivisible y libre de condiciones de carrera.
+
+### 🎯 ¿Por qué usar Atomic Classes?
+
+- ✔️ Evitan condiciones de carrera.
+- ✔️ No requieren bloqueos (synchronized, ReentrantLock).
+- ✔️ Mejoran el rendimiento en sistemas concurrentes.
+- ✔️ Son thread-safe.
+- ✔️ Utilizan operaciones CAS (Compare-And-Swap) optimizadas por la JVM.
