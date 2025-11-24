@@ -235,3 +235,15 @@ Thread Pool).
 
 2. Con `remove()`: Al llamar a `clear()`, se elimina el valor de `ThreadLocal` asociado al hilo. Cuando el hilo vuelve
    al pool, está "limpio" y listo para la siguiente solicitud sin arrastrar datos viejos o causando fugas.
+
+## 🎓 Resumen
+
+- `ThreadLocal` proporciona variables aisladas por hilo.
+- Ideal para `evitar sincronización` cuando cada hilo necesita su propia copia.
+- Siempre usar `remove()` para evitar memory leaks en thread pools.
+- Perfecto para objetos `no thread-safe` como `SimpleDateFormat`.
+- Usar con `responsabilidad`: puede consumir mucha memoria si se abusa.
+- Es común en frameworks para manejar `contextos de ejecución` (ej. transacciones, seguridad, logging).
+
+> 💡 `Recuerda`: `ThreadLocal` es una herramienta poderosa, pero como toda herramienta, debe usarse en el contexto
+> adecuado. No es una solución para todos los problemas de concurrencia.
