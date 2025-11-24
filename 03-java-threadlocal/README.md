@@ -121,3 +121,117 @@ La salida obtenida demuestra el aislamiento total de los datos:
 
 `Conclusión`: Cada hilo actuó sobre su propia "caja fuerte" de datos. Los cambios realizados por `hilo-1` e `hilo-2`
 fueron invisibles para `hilo-3`, el cual simplemente leyó la inicialización.
+
+## 📄 Ejemplo 2: Contexto de Usuario y limpieza (`remove()`)
+
+### 🎯 Objetivo del Ejemplo
+
+1. `Modelar un Contexto Transaccional/de Sesión`: Demostrar cómo `ThreadLocal` se utiliza para mantener un contexto
+   específico de un hilo (como la identidad del usuario logueado) a lo largo de una serie de operaciones.
+2. `Introducir la Limpieza`: Mostrar la importancia del método `remove()` para limpiar explícitamente el valor de la
+   variable local del hilo, lo cual es vital para evitar fugas de memoria en pools de hilos.
+
+````java
+
+@Slf4j
+public class UserContext {
+
+    // ThreadLocal para almacenar información del usuario actual
+    private static ThreadLocal<String> currentUser = new ThreadLocal<>();
+
+    public static void setUser(String user) {
+        currentUser.set(user);
+    }
+
+    public static String getUser() {
+        return currentUser.get();
+    }
+
+    public static void clear() {
+        currentUser.remove(); // ⚠️ Importante para evitar memory leaks
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        // Simulando múltiples usuarios concurrentes
+        Thread t1 = new Thread(task(), "hilo-1");
+        Thread t2 = new Thread(task(), "hilo-2");
+        Thread t3 = new Thread(task(), "hilo-3");
+
+        t1.start();
+        t2.start();
+        t3.start();
+
+        t1.join();
+        t2.join();
+        t3.join();
+    }
+
+    private static Runnable task() {
+        return () -> {
+            String threadName = Thread.currentThread().getName();
+
+            // Cada hilo establece su propio usuario
+            setUser("user-" + threadName);
+
+            // Simulando operaciones
+            log.info("{} inició sesión como: {}", threadName, getUser());
+
+            try {
+                Thread.sleep(Duration.ofSeconds(1));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+
+            log.info("{} sigue siendo: {}", threadName, getUser());
+
+            // Limpieza
+            clear();
+        };
+    }
+}
+````
+
+### 📝 Análisis del Código
+
+- `Encapsulación`: Se crean métodos utilitarios (`setUser`, `getUser`, `clear`) para gestionar la variable
+  `currentUser`.
+- `Valor Inicial`: A diferencia del **ejemplo 1**, aquí se usa el constructor simple `new ThreadLocal<>()`. Si un hilo
+  llama a `getUser()` sin llamar a `setUser()` primero, el valor devuelto sería `null`.
+- Cada hilo ejecuta el `Runnable task()`:
+    - Cada hilo llama a `set()`, almacenando su nombre de usuario (`user-hilo-1`, `user-hilo-2`, etc.) en su propia
+      copia privada de `currentUser`.
+    - La operación de uso simulada (sleep) ocurre. Durante este tiempo, cada hilo puede acceder con seguridad a su
+      propio contexto de usuario a través de `getUser()`. El `hilo-1` nunca ve el valor de `hilo-2`.
+    - Limpieza Crítica (`remove()`). Esta es la parte más importante en entornos de servidor. `remove()` elimina la
+      copia privada de `currentUser` de la estructura interna del hilo actual.
+
+````bash
+23:48:29.701 [hilo-2] INFO dev.magadiflo.app.UserContext -- hilo-2 inició sesión como: user-hilo-2
+23:48:29.701 [hilo-3] INFO dev.magadiflo.app.UserContext -- hilo-3 inició sesión como: user-hilo-3
+23:48:29.701 [hilo-1] INFO dev.magadiflo.app.UserContext -- hilo-1 inició sesión como: user-hilo-1
+23:48:30.717 [hilo-1] INFO dev.magadiflo.app.UserContext -- hilo-1 sigue siendo: user-hilo-1
+23:48:30.717 [hilo-3] INFO dev.magadiflo.app.UserContext -- hilo-3 sigue siendo: user-hilo-3
+23:48:30.717 [hilo-2] INFO dev.magadiflo.app.UserContext -- hilo-2 sigue siendo: user-hilo-2
+````
+
+La salida anterior demuestra el `aislamiento` y la `consistencia` de `ThreadLocal`:
+
+1. `Aislamiento Exitoso`: Cada hilo (`hilo-1`, `hilo-2`, `hilo-3`) establece y accede a su propio contexto de usuario
+   privado (`user-hilo-X`).
+2. `Consistencia Garantizada`: El valor establecido por cada hilo al inicio de la tarea (inició sesión como:
+   `user-hilo-X`) permanece inmutable y es leído correctamente al final de la tarea (sigue siendo: `user-hilo-X`), a
+   pesar de las operaciones concurrentes de los otros hilos.
+
+### ⚠️ El Concepto Clave: Prevención de Memory Leaks
+
+En un entorno de aplicaciones web (servidores como Tomcat o Jetty), los hilos no mueren; se reutilizan (son parte de un
+Thread Pool).
+
+1. Sin `remove()` (¡El Leak!): Si el `hilo-1` completa su tarea (con `user-hilo-1` asignado) y no llama a `remove()`, el
+   valor `user-hilo-1` permanece asociado permanentemente al objeto Thread en el pool.
+    - Si ese `hilo-1` se reutiliza para manejar una nueva solicitud de `user-hilo-4`, `hilo-4` podría accidentalmente
+      leer el viejo valor de `user-hilo-1` (un bug de seguridad/lógica) o, peor aún, la memoria del objeto `user-hilo-1`
+      nunca se liberaría, causando una fuga de memoria.
+
+2. Con `remove()`: Al llamar a `clear()`, se elimina el valor de `ThreadLocal` asociado al hilo. Cuando el hilo vuelve
+   al pool, está "limpio" y listo para la siguiente solicitud sin arrastrar datos viejos o causando fugas.
