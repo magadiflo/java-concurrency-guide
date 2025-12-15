@@ -385,3 +385,12 @@ public class SistemaProcesoPedidos {
 23:05:17.323 [main] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Timeout en executor Orders
 23:05:17.325 [main] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Timeout en executor Notifications 
 ````
+
+## 🎓 Resumen
+
+- `ExecutorService` es la forma moderna y recomendada de manejar concurrencia en Java.
+- Proporciona diferentes tipos de pools según las necesidades.
+- Facilita la gestión del ciclo de vida de los hilos.
+- Es esencial en aplicaciones empresariales de alto rendimiento.
+- Siempre debe cerrarse correctamente con `shutdown()` o `shutdownNow()`.
+- Usar `Future` o `CompletableFuture` para manejar resultados y excepciones.
