@@ -12,5 +12,7 @@ public class SingleThreadExecutor {
         executor.submit(() -> log.info("Usuario login"));
         executor.submit(() -> log.info("Consulta BD"));
         executor.submit(() -> log.info("Usuario logout"));
+
+        executor.shutdown();
     }
 }

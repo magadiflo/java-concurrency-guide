@@ -167,6 +167,8 @@ public class CachedThreadPool {
             final int requestApi = i;
             executor.submit(() -> log.info("Procesando Request API #{} en hilo: {}", requestApi, Thread.currentThread().getName()));
         }
+
+        executor.shutdown();
     }
 }
 ````
@@ -204,6 +206,8 @@ public class SingleThreadExecutor {
         executor.submit(() -> log.info("Usuario login"));
         executor.submit(() -> log.info("Consulta BD"));
         executor.submit(() -> log.info("Usuario logout"));
+
+        executor.shutdown();
     }
 }
 ````
@@ -212,4 +216,59 @@ public class SingleThreadExecutor {
 20:27:22.634 [pool-1-thread-1] INFO dev.magadiflo.app.examples.SingleThreadExecutor -- Usuario login
 20:27:22.639 [pool-1-thread-1] INFO dev.magadiflo.app.examples.SingleThreadExecutor -- Consulta BD
 20:27:22.639 [pool-1-thread-1] INFO dev.magadiflo.app.examples.SingleThreadExecutor -- Usuario logout
+````
+
+### 4️⃣ ScheduledThreadPool
+
+Aquí se emplea un `ScheduledThreadPool` para ejecutar tareas **de forma programada o periódica**, similar a un cron.
+
+Se observa un caso de ejecución repetitiva (`scheduleAtFixedRate`) para la generación de reportes y otro de ejecución
+diferida (`schedule`) para enviar una notificación tras un retraso inicial.
+
+Este tipo de executor es ideal para **tareas recurrentes**, mantenimientos automáticos o procesos programados dentro
+de una aplicación.
+
+🕒 Permite manejar tiempos sin bloquear el hilo principal.
+
+- `scheduleAtFixedRate(...)`. Se ejecuta de forma periódica, en este caso cada 24 horas, después de la primera
+  ejecución.
+- `schedule(...)`. Se ejecuta una sola vez, luego del tiempo de retraso indicado (5 segundos en el ejemplo).
+
+📌 En este código, la tarea de `“Enviando notificación…”` se ejecuta solo una vez y no vuelve a ejecutarse, ni después de
+24 horas ni junto con la tarea periódica.
+
+Si quisieras que esa notificación también se ejecute de forma periódica, tendrías que usar `scheduleAtFixedRate()` o
+`scheduleWithFixedDelay()`.
+
+````java
+
+@Slf4j
+public class ScheduledThreadPool {
+    public static void main(String[] args) {
+        // Ejemplo: Generación de reportes diarios
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+
+        // Ejecutar cada 24 horas
+        scheduler.scheduleAtFixedRate(
+                () -> log.info("Generando reporte diario..."),
+                0,
+                24,
+                TimeUnit.HOURS
+        );
+
+        // Ejecutar con retraso inicial de 5 segundos
+        scheduler.schedule(
+                () -> log.info("Enviando notificación..."),
+                5,
+                TimeUnit.SECONDS
+        );
+
+        scheduler.shutdown();
+    }
+}
+````
+
+````bash
+20:38:28.834 [pool-1-thread-1] INFO dev.magadiflo.app.examples.ScheduledThreadPool -- Generando reporte diario...
+20:38:33.845 [pool-1-thread-2] INFO dev.magadiflo.app.examples.ScheduledThreadPool -- Enviando notificación... 
 ````

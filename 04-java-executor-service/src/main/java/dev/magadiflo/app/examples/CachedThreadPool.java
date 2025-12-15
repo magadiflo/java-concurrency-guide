@@ -13,5 +13,7 @@ public class CachedThreadPool {
             final int requestApi = i;
             executor.submit(() -> log.info("Procesando Request API #{} en hilo: {}", requestApi, Thread.currentThread().getName()));
         }
+
+        executor.shutdown();
     }
 }
