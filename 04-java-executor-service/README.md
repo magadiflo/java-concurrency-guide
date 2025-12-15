@@ -44,12 +44,12 @@ La forma más común es a través de `Executors`:
 
 📌 Tipos de Pools
 
-| Tipo                        | Descripción                    | Uso recomendado                                  |
-|-----------------------------|--------------------------------|--------------------------------------------------|
-| `newFixedThreadPool(n)`     | Pool de tamaño fijo            | Microservicios, aplicaciones con carga constante |
-| `newCachedThreadPool()`     | Crea hilos según demanda       | Aplicaciones IO-bound, scripts de automatización |
-| `newSingleThreadExecutor()` | Un solo hilo                   | Procesos secuenciales que deben mantener orden   |
-| `newScheduledThreadPool(n)` | Ejecución periódica o diferida | Cron jobs, tareas programadas                    |
+| Tipo                        | Descripción                                            | Uso recomendado                                  |
+|-----------------------------|--------------------------------------------------------|--------------------------------------------------|
+| `newFixedThreadPool(n)`     | Pool con un número fijo de hilos                       | Microservicios, aplicaciones con carga constante |
+| `newCachedThreadPool()`     | Crea hilos bajo demanda y reutiliza los existentes     | Aplicaciones IO-bound, scripts de automatización |
+| `newSingleThreadExecutor()` | Usa un único hilo para ejecutar tareas secuencialmente | Procesos secuenciales que deben mantener orden   |
+| `newScheduledThreadPool(n)` | Permite programar tareas con retrasos o periodicidad   | Cron jobs, tareas programadas                    |
 
 Ejemplo:
 
@@ -144,3 +144,42 @@ similar**, pero existe una diferencia clave:
 En muchos equipos backend se estandariza `submit()` por seguridad, incluso con `Runnable`, para no perder excepciones
 silenciosamente.
 
+### 2️⃣ CachedThreadPool
+
+En este ejemplo se utiliza un `CachedThreadPool`, el cual **crea hilos dinámicamente según la demanda** y reutiliza
+aquellos que quedan libres. A diferencia de un `FixedThreadPool`, **no existe un límite fijo de hilos**, por lo que
+pueden ejecutarse muchas tareas en paralelo si el sistema lo permite.
+
+El resultado muestra cómo se crean múltiples hilos (`pool-1-thread-*`) para atender rápidamente las solicitudes
+simuladas de una API. Este tipo de pool es adecuado para **tareas cortas y altamente concurrentes**, especialmente en
+escenarios *IO-bound* como llamadas a servicios externos o procesamiento de requests HTTP.
+
+⚠️ Debe usarse con cuidado en producción, ya que un volumen elevado de tareas puede provocar la creación excesiva de
+hilos y afectar el rendimiento del sistema.
+
+````java
+
+@Slf4j
+public class CachedThreadPool {
+    public static void main(String[] args) {
+        ExecutorService executor = Executors.newCachedThreadPool();
+        for (int i = 1; i <= 50; i++) {
+            final int requestApi = i;
+            executor.submit(() -> log.info("Procesando Request API #{} en hilo: {}", requestApi, Thread.currentThread().getName()));
+        }
+    }
+}
+````
+
+````bash
+20:24:02.019 [pool-1-thread-30] INFO dev.magadiflo.app.examples.CachedThreadPool -- Procesando Request API #30 en hilo: pool-1-thread-30
+20:24:02.026 [pool-1-thread-36] INFO dev.magadiflo.app.examples.CachedThreadPool -- Procesando Request API #36 en hilo: pool-1-thread-36
+20:24:02.026 [pool-1-thread-48] INFO dev.magadiflo.app.examples.CachedThreadPool -- Procesando Request API #48 en hilo: pool-1-thread-48
+20:24:02.019 [pool-1-thread-27] INFO dev.magadiflo.app.examples.CachedThreadPool -- Procesando Request API #27 en hilo: pool-1-thread-27
+20:24:02.026 [pool-1-thread-41] INFO dev.magadiflo.app.examples.CachedThreadPool -- Procesando Request API #41 en hilo: pool-1-thread-41
+20:24:02.019 [pool-1-thread-19] INFO dev.magadiflo.app.examples.CachedThreadPool -- Procesando Request API #19 en hilo: pool-1-thread-19
+20:24:02.019 [pool-1-thread-6] INFO dev.magadiflo.app.examples.CachedThreadPool -- Procesando Request API #6 en hilo: pool-1-thread-6
+...
+20:24:02.019 [pool-1-thread-4] INFO dev.magadiflo.app.examples.CachedThreadPool -- Procesando Request API #4 en hilo: pool-1-thread-4
+20:24:02.020 [pool-1-thread-18] INFO dev.magadiflo.app.examples.CachedThreadPool -- Procesando Request API #18 en hilo: pool-1-thread-18
+````
