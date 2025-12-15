@@ -183,3 +183,33 @@ public class CachedThreadPool {
 20:24:02.019 [pool-1-thread-4] INFO dev.magadiflo.app.examples.CachedThreadPool -- Procesando Request API #4 en hilo: pool-1-thread-4
 20:24:02.020 [pool-1-thread-18] INFO dev.magadiflo.app.examples.CachedThreadPool -- Procesando Request API #18 en hilo: pool-1-thread-18
 ````
+
+### 3️⃣ SingleThreadExecutor
+
+En este ejemplo se emplea un `SingleThreadExecutor`, el cual garantiza que **todas las tareas se ejecuten de forma
+secuencial en un único hilo**.
+
+Aunque se envían varias tareas, estas se procesan **en el mismo orden en que fueron enviadas**, reutilizando siempre el
+mismo hilo (`pool-1-thread-1`). Esto asegura consistencia y evita problemas de concurrencia.
+
+📌 Es ideal para escenarios donde el **orden de ejecución es crítico**, como auditorías, logs, transacciones simples o
+flujos que no deben ejecutarse en paralelo.
+
+````java
+
+@Slf4j
+public class SingleThreadExecutor {
+    public static void main(String[] args) {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        executor.submit(() -> log.info("Usuario login"));
+        executor.submit(() -> log.info("Consulta BD"));
+        executor.submit(() -> log.info("Usuario logout"));
+    }
+}
+````
+
+````bash
+20:27:22.634 [pool-1-thread-1] INFO dev.magadiflo.app.examples.SingleThreadExecutor -- Usuario login
+20:27:22.639 [pool-1-thread-1] INFO dev.magadiflo.app.examples.SingleThreadExecutor -- Consulta BD
+20:27:22.639 [pool-1-thread-1] INFO dev.magadiflo.app.examples.SingleThreadExecutor -- Usuario logout
+````
