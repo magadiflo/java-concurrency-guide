@@ -64,7 +64,7 @@ Algunos métodos útiles que ofrece `ExecutorService`:
 - `execute(Runnable task)`: Ejecuta una tarea en segundo plano sin esperar un resultado.
 - `submit(Callable task)`: Igual que execute, pero devuelve un resultado con Future.
 - `shutdown()`: Detiene el ExecutorService después de terminar las tareas en curso.
-- `shutdownNow()`: Intenta detener todas las tareas de inmediato.
+- `shutdownNow()`: Intenta detener todas las tareas activas inmediatamente.
 - `invokeAll(Collection<Callable> tasks)`: Ejecuta varias tareas y devuelve una lista de objetos Future con los
   resultados.
 - `invokeAny(Collection<Callable> tasks)`: Ejecuta varias tareas y devuelve el resultado de la primera que termine.
@@ -271,4 +271,117 @@ public class ScheduledThreadPool {
 ````bash
 20:38:28.834 [pool-1-thread-1] INFO dev.magadiflo.app.examples.ScheduledThreadPool -- Generando reporte diario...
 20:38:33.845 [pool-1-thread-2] INFO dev.magadiflo.app.examples.ScheduledThreadPool -- Enviando notificación... 
+````
+
+## 🧾 Ejemplo: Procesamiento concurrente de pedidos con múltiples ExecutorService
+
+En este ejemplo se simula un **sistema de procesamiento de pedidos** utilizando dos `ExecutorService` independientes,
+cada uno con una responsabilidad clara.
+
+El `FixedThreadPool` de 5 hilos se encarga del **flujo principal del pedido** (validación de inventario, pago y
+facturación), lo que permite procesar varios pedidos en paralelo de forma controlada. Cuando un pedido termina su flujo
+principal, se delega el envío de la notificación a un `CachedThreadPool`, evitando bloquear el procesamiento de otros
+pedidos.
+
+📌 Este patrón es común en sistemas reales de e-commerce y microservicios, donde las tareas críticas y las tareas
+secundarias (como notificaciones) se separan para **mejorar el rendimiento, la escalabilidad y la experiencia del
+usuario**.
+
+````java
+
+@Slf4j
+public class SistemaProcesoPedidos {
+    public static void main(String[] args) {
+        // Pool de 5 hilos para procesar pedidos
+        ExecutorService executorOrders = Executors.newFixedThreadPool(5);
+
+        // Pool separado para notificaciones
+        ExecutorService executorNotifications = Executors.newCachedThreadPool();
+
+        List<Integer> orders = Arrays.asList(101, 102, 103, 104, 105, 106);
+
+        orders.forEach(orderId -> {
+            executorOrders.submit(() -> {
+                try {
+                    // 1. Validar inventario
+                    log.info("Validando inventario para pedido #{}", orderId);
+                    Thread.sleep(1000);
+
+                    // 2. Procesar pago
+                    log.info("Procesando pago para pedido #{}", orderId);
+                    Thread.sleep(1500);
+
+                    // 3. Generar factura
+                    log.info("Generando factura para pedido #{}", orderId);
+                    Thread.sleep(800);
+
+                    // 4. Enviar notificación (async)
+                    executorNotifications.submit(() -> sendNotificationToClient(orderId));
+
+                    log.info("Pedido #{} completado", orderId);
+
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    log.error("Error procesando pedido #{}", orderId);
+                }
+            });
+        });
+
+        // Cerrar ejecutores correctamente
+        shutdownExecutor(executorOrders, "Orders");
+        shutdownExecutor(executorNotifications, "Notifications");
+    }
+
+    private static void shutdownExecutor(ExecutorService executor, String name) {
+        executor.shutdown();
+        try {
+            if (executor.awaitTermination(60, TimeUnit.SECONDS)) {
+                log.info("Timeout en executor {}", name);
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private static void sendNotificationToClient(Integer orderId) {
+        log.info("Notificación enviada al cliente - Pedido #{}", orderId);
+    }
+}
+````
+
+````bash
+23:05:10.654 [pool-1-thread-4] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Validando inventario para pedido #104
+23:05:10.654 [pool-1-thread-3] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Validando inventario para pedido #103
+23:05:10.654 [pool-1-thread-5] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Validando inventario para pedido #105
+23:05:10.654 [pool-1-thread-2] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Validando inventario para pedido #102
+23:05:10.654 [pool-1-thread-1] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Validando inventario para pedido #101
+23:05:11.673 [pool-1-thread-1] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Procesando pago para pedido #101
+23:05:11.673 [pool-1-thread-5] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Procesando pago para pedido #105
+23:05:11.673 [pool-1-thread-2] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Procesando pago para pedido #102
+23:05:11.673 [pool-1-thread-4] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Procesando pago para pedido #104
+23:05:11.673 [pool-1-thread-3] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Procesando pago para pedido #103
+23:05:13.185 [pool-1-thread-4] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Generando factura para pedido #104
+23:05:13.185 [pool-1-thread-5] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Generando factura para pedido #105
+23:05:13.185 [pool-1-thread-3] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Generando factura para pedido #103
+23:05:13.185 [pool-1-thread-2] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Generando factura para pedido #102
+23:05:13.185 [pool-1-thread-1] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Generando factura para pedido #101
+23:05:13.989 [pool-1-thread-2] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Pedido #102 completado
+23:05:13.989 [pool-1-thread-4] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Pedido #104 completado
+23:05:13.989 [pool-1-thread-1] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Pedido #101 completado
+23:05:13.989 [pool-1-thread-3] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Pedido #103 completado
+23:05:13.989 [pool-1-thread-5] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Pedido #105 completado
+23:05:13.990 [pool-1-thread-2] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Validando inventario para pedido #106
+23:05:13.990 [pool-2-thread-2] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Notificación enviada al cliente - Pedido #103
+23:05:13.990 [pool-2-thread-1] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Notificación enviada al cliente - Pedido #102
+23:05:13.990 [pool-2-thread-4] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Notificación enviada al cliente - Pedido #104
+23:05:13.990 [pool-2-thread-5] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Notificación enviada al cliente - Pedido #101
+23:05:13.990 [pool-2-thread-3] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Notificación enviada al cliente - Pedido #105
+23:05:15.002 [pool-1-thread-2] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Procesando pago para pedido #106
+23:05:16.515 [pool-1-thread-2] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Generando factura para pedido #106
+23:05:17.322 [pool-1-thread-2] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Pedido #106 completado
+23:05:17.323 [pool-2-thread-3] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Notificación enviada al cliente - Pedido #106
+23:05:17.323 [main] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Timeout en executor Orders
+23:05:17.325 [main] INFO dev.magadiflo.app.SistemaProcesoPedidos -- Timeout en executor Notifications 
 ````
