@@ -542,3 +542,335 @@ public class WhenComplete {
 
 Es un método de consumo pasivo. Se utiliza para ejecutar efectos secundarios (logging, métricas, cerrar conexiones) sin
 alterar el resultado del pipeline asíncrono.
+
+## 💻 Proyecto Práctico: Sistema de Procesamiento de Pedidos
+
+### 📦 Descripción del proyecto
+
+Crearemos un sistema que procesa pedidos de manera asíncrona:
+
+1. Validar el pedido.
+2. Verificar stock en inventario.
+3. Procesar el pago.
+4. Enviar notificación al cliente.
+
+### 🗂️ Estructura del proyecto
+
+````scss
+src/
+├── model/
+│   ├── Order.java
+│   ├── PaymentResult.java
+│   └── OrderResult.java
+├── service/
+│   ├── ValidationService.java
+│   ├── InventoryService.java
+│   ├── PaymentService.java
+│   └── NotificationService.java
+└── OrderProcessor.java 
+````
+
+#### Order
+
+````java
+
+@ToString
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
+@Data
+public class Order {
+
+    private String orderId;
+    private String productId;
+    private int quantity;
+    private BigDecimal amount;
+    private String customerEmail;
+
+}
+````
+
+#### PaymentResult
+
+````java
+public record PaymentResult(boolean success,
+                            String transactionId,
+                            String message) {
+    public static PaymentResult success(String transactionId, String message) {
+        return new PaymentResult(true, transactionId, message);
+    }
+
+    public static PaymentResult failure(String transactionId, String message) {
+        return new PaymentResult(false, transactionId, message);
+    }
+}
+````
+
+#### OrderResult
+
+````java
+public record OrderResult(String orderId,
+                          boolean success,
+                          String message,
+                          String transactionId) {
+    public static OrderResult success(String orderId, String message, String transactionId) {
+        return new OrderResult(orderId, true, message, transactionId);
+    }
+
+    public static OrderResult failure(String orderId, String message, String transactionId) {
+        return new OrderResult(orderId, false, message, transactionId);
+    }
+}
+````
+
+#### ValidationService
+
+````java
+
+@Slf4j
+public class ValidationService {
+
+    public boolean validateOrder(Order order) {
+        log.info("Validando pedido: {}", order.getOrderId());
+        simulateDelay(500);
+
+        // validaciones básicas
+        if (order.getOrderId() == null || order.getOrderId().isBlank()) {
+            throw new IllegalArgumentException("Order ID no puede estar vacío");
+        }
+
+        if (order.getQuantity() <= 0) {
+            throw new IllegalArgumentException("Cantidad debe ser mayor a 0");
+        }
+
+        if (order.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Monto debe ser mayor a 0");
+        }
+
+        log.info("Pedido validado correctamente");
+        return true;
+    }
+
+    private void simulateDelay(int milliseconds) {
+        try {
+            Thread.sleep(milliseconds);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+````
+
+#### InventoryService
+
+````java
+
+@Slf4j
+public class InventoryService {
+
+    private final Map<String, Integer> inventory = new HashMap<>();
+
+    {
+        this.inventory.put("PROD-001", 100);
+        this.inventory.put("PROD-002", 50);
+        this.inventory.put("PROD-003", 200);
+    }
+
+    public boolean checkStock(Order order) {
+        log.info("Verificando stock para producto: {}", order.getProductId());
+        simulateDelay(800);
+
+        int available = this.inventory.getOrDefault(order.getProductId(), -1);
+        if (available == -1) {
+            throw new IllegalArgumentException("Producto no encontrado:  " + order.getProductId());
+        }
+
+        if (available < order.getQuantity()) {
+            throw new IllegalStateException("Stock insuficiente. Disponible: " + available + ", Requerido: " + order.getQuantity());
+        }
+
+        //Reducir stock
+        int newStock = available - order.getQuantity();
+        inventory.put(order.getProductId(), newStock);
+
+        log.info("Stock verificado. Disponible: {}", newStock);
+        return true;
+    }
+
+    private void simulateDelay(int millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+````
+
+````java
+
+@Slf4j
+public class PaymentService {
+
+    public PaymentResult processPayment(Order order) {
+        log.info("Procesando pago para pedido: {}", order.getOrderId());
+        simulateDelay(1000);
+
+        // Simular fallo aleatorio (10% de probabilidad)
+        if (Math.random() < 0.1) {
+            throw new RuntimeException("Error en procesamiento de pago: Gateway timeout");
+        }
+
+        String transactionId = "TXN-" + UUID.randomUUID().toString().substring(0, 8);
+        log.info("Pago procesado. Transacción ID: {}", transactionId);
+        return PaymentResult.success(transactionId, "Pago exitoso");
+    }
+
+    private void simulateDelay(int millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+````
+
+#### NotificationService
+
+````java
+
+@Slf4j
+public class NotificationService {
+
+    public void sendNotification(Order order, OrderResult orderResult) {
+        log.info("Enviando notificación a: {}", order.getCustomerEmail());
+        simulateDelay(300);
+
+        if (orderResult.success()) {
+            log.info("Notificación enviada: Pedido confirmado: {}", orderResult.transactionId());
+        } else {
+            log.error("Notificación enviada: Pedido fallido: {}", orderResult.message());
+        }
+    }
+
+    private void simulateDelay(int millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+````
+
+#### OrderProcessor
+
+````java
+
+@Slf4j
+public class OrderProcessor {
+
+    private final ValidationService validationService = new ValidationService();
+    private final InventoryService inventoryService = new InventoryService();
+    private final PaymentService paymentService = new PaymentService();
+    private final NotificationService notificationService = new NotificationService();
+    private final ExecutorService executorService = Executors.newFixedThreadPool(10);
+
+
+    /**
+     * Procesa un pedido de manera asíncrona
+     * 1. Valida el pedido
+     * 2. Verifica stock
+     * 3. Procesa pago
+     * 4. Envía notificación
+     */
+    public CompletableFuture<OrderResult> processOrder(Order order) {
+        log.info("Iniciando procesamiento de pedido: {}", order.getOrderId());
+
+        return CompletableFuture
+                // Paso 1: Validar pedido
+                .supplyAsync(() -> {
+                    this.validationService.validateOrder(order);
+                    return order;
+                }, this.executorService)
+
+                // Paso 2: Verificar stock
+                .thenCompose(validatedOrder -> CompletableFuture.supplyAsync(() -> {
+                    this.inventoryService.checkStock(validatedOrder);
+                    return validatedOrder;
+                }, this.executorService))
+
+                // Paso 3: Procesar pago
+                .thenCompose(validatedOrder -> CompletableFuture.supplyAsync(() -> {
+                    PaymentResult paymentResult = this.paymentService.processPayment(validatedOrder);
+                    return OrderResult.success(validatedOrder.getOrderId(), "Pedido procesado exitosamente", paymentResult.transactionId());
+                }, this.executorService))
+
+                // Manejo de errores
+                .handle((orderResult, throwable) -> {
+                    if (throwable != null) {
+                        log.error("Error procesando pedido: {}", throwable.getMessage());
+                        return OrderResult.failure(order.getOrderId(), "Error: " + throwable.getCause().getMessage(), null);
+                    }
+                    return orderResult;
+                })
+
+                // Paso 4: Enviar notificación (siempre se ejecuta)
+                .whenComplete((orderResult, throwable) -> {
+                    this.notificationService.sendNotification(order, orderResult);
+                });
+
+    }
+
+    public void shutdown() {
+        this.executorService.shutdown();
+    }
+
+}
+````
+
+#### Main
+
+````java
+
+@Slf4j
+public class Main {
+    public static void main(String[] args) {
+        OrderProcessor processor = new OrderProcessor();
+
+        log.info("Ejemplo: procesamiento de un solo pedido");
+
+        Order order1 = Order.builder()
+                .orderId("ORD-001")
+                .productId("PROD-001")
+                .quantity(2)
+                .amount(new BigDecimal("100.00"))
+                .customerEmail("cliente@gmail.com")
+                .build();
+
+        CompletableFuture<OrderResult> feature1 = processor.processOrder(order1);
+
+        // Obtener resultado (bloqueante, solo para demo)
+        feature1
+                .thenAccept(orderResult -> log.info("Resultado final: {}", orderResult))
+                .join();
+
+        processor.shutdown();
+    }
+}
+````
+
+````bash
+18:09:31.786 [main] INFO dev.magadiflo.app.orders.Main -- Ejemplo: procesamiento de un solo pedido
+18:09:31.793 [main] INFO dev.magadiflo.app.orders.OrderProcessor -- Iniciando procesamiento de pedido: ORD-001
+18:09:31.803 [pool-1-thread-1] INFO dev.magadiflo.app.orders.service.ValidationService -- Validando pedido: ORD-001
+18:09:32.309 [pool-1-thread-1] INFO dev.magadiflo.app.orders.service.ValidationService -- Pedido validado correctamente
+18:09:32.310 [pool-1-thread-2] INFO dev.magadiflo.app.orders.service.InventoryService -- Verificando stock para producto: PROD-001
+18:09:33.122 [pool-1-thread-2] INFO dev.magadiflo.app.orders.service.InventoryService -- Stock verificado. Disponible: 98
+18:09:33.125 [pool-1-thread-3] INFO dev.magadiflo.app.orders.service.PaymentService -- Procesando pago para pedido: ORD-001
+18:09:34.219 [pool-1-thread-3] INFO dev.magadiflo.app.orders.service.PaymentService -- Pago procesado. Transacción ID: TXN-fda2f3d2
+18:09:34.220 [pool-1-thread-3] INFO dev.magadiflo.app.orders.service.NotificationService -- Enviando notificación a: cliente@gmail.com
+18:09:34.530 [pool-1-thread-3] INFO dev.magadiflo.app.orders.service.NotificationService -- Notificación enviada: Pedido confirmado: TXN-fda2f3d2
+18:09:34.531 [pool-1-thread-3] INFO dev.magadiflo.app.orders.Main -- Resultado final: OrderResult[orderId=ORD-001, success=true, message=Pedido procesado exitosamente, transactionId=TXN-fda2f3d2] 
+````
