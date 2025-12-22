@@ -242,3 +242,68 @@ Por defecto, `CompletableFuture` usa el `ForkJoinPool.commonPool()`. Sin embargo
 3. `Monitoreo`: Los pools personalizados permiten trackear métricas como hilos activos, tareas en cola y tiempos de
    ejecución de forma más sencilla.
 
+## 🔗 Composición Asíncrona
+
+### 🔸 thenApply - Transformar el resultado
+
+Aplica una función al resultado cuando se completa. Es síncrono respecto al resultado anterior.
+
+````java
+
+@Slf4j
+public class ThenApply {
+
+    public static void main(String[] args) throws InterruptedException {
+        // 1. Iniciamos el pipeline asíncrono obteniendo la entidad 'User'.
+        CompletableFuture<UserDTO> completableFuture = CompletableFuture
+                .supplyAsync(() -> findById(1))
+                // 2. Transformación de datos (Mapeo):
+                // 'thenApply' recibe el resultado de la etapa anterior y lo transforma.
+                // Es funcionalmente equivalente al .map() de los Streams de Java.
+                .thenApply(user -> {
+                    log.info("Transformando entidad a DTO para: {}", user.getName());
+                    return new UserDTO(user.getName(), user.getEmail());
+                });
+
+        // 3. Consumimos el resultado final transformado.
+        completableFuture.thenAccept(userDTO -> log.info("DTO recibido con éxito: {}", userDTO));
+
+        // Mantenemos el hilo main vivo para visualizar la ejecución de los hilos secundarios.
+        Thread.sleep(Duration.ofSeconds(1));
+    }
+
+    private static User findById(int userId) {
+        // Simulación de acceso a persistencia
+        return new User(userId, "Sam", "sam@gmail.com");
+    }
+
+    // Clases de apoyo (Entidad y Record)
+    @AllArgsConstructor
+    @Data
+    static class User {
+        int id;
+        String name;
+        String email;
+    }
+
+    record UserDTO(String name, String email) {
+    }
+}
+````
+
+````bash
+13:07:40.292 [main] INFO dev.magadiflo.app.composition.ThenApply -- Transformando entidad a DTO para: Sam
+13:07:40.299 [main] INFO dev.magadiflo.app.composition.ThenApply -- DTO recibido con éxito: UserDTO[name=Sam, email=sam@gmail.com] 
+````
+
+#### Qué es `thenApply`?
+
+Es un método de `transformación`. Se utiliza cuando quieres realizar una operación sobre el resultado de un
+`CompletableFuture` y necesitas que esa operación devuelva un nuevo valor.
+
+Características principales:
+
+- `Encadenamiento`: Permite construir flujos de procesamiento paso a paso.
+- `Sincronía del paso`: Por defecto, la función dentro de `thenApply` se ejecuta en el mismo hilo que completó la tarea
+  anterior (a menos que uses thenApplyAsync).
+- `Retorno`: Siempre devuelve un `CompletableFuture<U>`, donde U es el nuevo tipo de dato transformado.
