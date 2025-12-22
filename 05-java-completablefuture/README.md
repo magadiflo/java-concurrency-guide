@@ -44,11 +44,18 @@ procesos en background.
 
 @Slf4j
 public class SupplyAsync {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
+        log.info("Inicia método main");
+
         // 1. Iniciamos la tarea asíncrona.
         // supplyAsync usa por defecto el ForkJoinPool.commonPool.
         CompletableFuture<String> completableFuture = CompletableFuture.supplyAsync(() -> {
             // Simula latencia de un servicio externo (E/O)
+            try {
+                Thread.sleep(Duration.ofSeconds(3));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
             return "Resultado de operación asíncrona";
         });
 
@@ -57,15 +64,20 @@ public class SupplyAsync {
         // en cuanto el resultado esté disponible, sin detener el hilo principal.
         completableFuture.thenAccept(resultado -> log.info("Recibido: {}", resultado));
 
-        // NOTA: En un método main, el programa podría terminar
+        // NOTA PARA DOCUMENTACIÓN: En un método main, el programa podría terminar
         // antes de recibir el resultado. En entornos reales (Servidores, APIs),
         // el flujo sigue vivo y el callback se dispara correctamente.
+
+        log.info("Finaliza método main");
+        Thread.sleep(Duration.ofSeconds(4));
     }
 }
 ````
 
 ````bash
-11:44:16.098 [main] INFO dev.magadiflo.app.creations.SupplyAsync -- Recibido: Resultado de operación asíncrona
+12:42:38.419 [main] INFO dev.magadiflo.app.creations.SupplyAsync -- Inicia método main
+12:42:38.435 [main] INFO dev.magadiflo.app.creations.SupplyAsync -- Finaliza método main
+12:42:41.436 [ForkJoinPool.commonPool-worker-1] INFO dev.magadiflo.app.creations.SupplyAsync -- Recibido: Resultado de operación asíncrona
 ````
 
 Definiciones Clave
@@ -89,7 +101,7 @@ Definiciones Clave
 @Slf4j
 public class RunAsync {
     public static void main(String[] args) throws InterruptedException {
-        log.info("Iniciando ejecución de tarea asíncrona");
+        log.info("Inicia método main");
 
         // 1. Uso de runAsync para tareas que NO devuelven un valor (Runnable).
         // Al igual que supplyAsync, se ejecuta en el ForkJoinPool.commonPool por defecto.
@@ -108,15 +120,16 @@ public class RunAsync {
          * a los hilos del pool asíncrono. Usamos Thread.sleep aquí para mantener la
          * JVM viva el tiempo suficiente para que la tarea asíncrona complete su ejecución.
          */
+        log.info("Finaliza método main");
         Thread.sleep(Duration.ofSeconds(6));
     }
 }
-
 ````
 
 ````bash
-11:57:12.379 [main] INFO dev.magadiflo.app.creations.RunAsync -- Iniciando ejecución de tarea asíncrona
-11:57:17.407 [ForkJoinPool.commonPool-worker-1] INFO dev.magadiflo.app.creations.RunAsync -- Finalizando ejecución de tarea asíncrona
+12:44:17.148 [main] INFO dev.magadiflo.app.creations.RunAsync -- Inicia método main
+12:44:17.160 [main] INFO dev.magadiflo.app.creations.RunAsync -- Finaliza método main
+12:44:22.171 [ForkJoinPool.commonPool-worker-1] INFO dev.magadiflo.app.creations.RunAsync -- Finalizando ejecución de tarea asíncrona
 ````
 
 El `runAsync` se utiliza para ejecutar tareas que tienen efectos secundarios (side effects) pero no retornan un objeto.
@@ -133,19 +146,24 @@ Ejemplos comunes:
 @Slf4j
 public class CompletedFuture {
     public static void main(String[] args) {
+        log.info("Inicia método main");
         // 1. Crea un CompletableFuture que ya nace en estado "Completado".
         // No inicia ninguna tarea en hilos secundarios; el valor ya está disponible.
         CompletableFuture<String> completableFuture = CompletableFuture.completedFuture("Valor inmediato");
 
-        // 2. Al estar ya completado, el callback 'thenAccept' se ejecuta 
+        // 2. Al estar ya completado, el callback 'thenAccept' se ejecuta
         // inmediatamente en el hilo que realiza la llamada (en este caso, el main).
         completableFuture.thenAccept(resultado -> log.info("Procesando: {}", resultado));
+
+        log.info("Finaliza método main");
     }
 }
 ````
 
 ````bash
-12:04:28.801 [main] INFO dev.magadiflo.app.creations.CompletedFuture -- Valor inmediato 
+12:45:40.984 [main] INFO dev.magadiflo.app.creations.CompletedFuture -- Inicia método main
+12:45:40.995 [main] INFO dev.magadiflo.app.creations.CompletedFuture -- Procesando: Valor inmediato
+12:45:40.997 [main] INFO dev.magadiflo.app.creations.CompletedFuture -- Finaliza método main
 ````
 
 ¿Qué es `CompletableFuture.completedFuture`?
@@ -173,6 +191,8 @@ Diferencia de Ejecución
 @Slf4j
 public class CustomExecutor {
     public static void main(String[] args) throws InterruptedException {
+        log.info("Inicio de método main");
+
         // 1. Definimos un pool de hilos personalizado.
         // Esto evita el uso del ForkJoinPool.commonPool y nos da control total
         // sobre la cantidad de hilos y el ciclo de vida.
@@ -195,17 +215,19 @@ public class CustomExecutor {
 
         // NOTA: Es vital cerrar el executorService para liberar recursos
         // y permitir que la JVM finalice correctamente.
+
+        log.info("Fin del método main");
         Thread.sleep(Duration.ofSeconds(3));
         executorService.shutdown();
-        log.info("Fin del código");
     }
 }
 ````
 
 ````bash
-12:30:08.806 [pool-1-thread-1] INFO dev.magadiflo.app.creations.CustomExecutor -- Iniciando tarea en: pool-1-thread-1
-12:30:10.813 [pool-1-thread-1] INFO dev.magadiflo.app.creations.CustomExecutor -- Ejecución finalizada en pool personalizado
-12:30:11.811 [main] INFO dev.magadiflo.app.creations.CustomExecutor -- Fin del código
+12:46:59.074 [main] INFO dev.magadiflo.app.creations.CustomExecutor -- Inicio de método main
+12:46:59.089 [main] INFO dev.magadiflo.app.creations.CustomExecutor -- Fin del método main
+12:46:59.087 [pool-1-thread-1] INFO dev.magadiflo.app.creations.CustomExecutor -- Iniciando tarea en: pool-1-thread-1
+12:47:01.093 [pool-1-thread-1] INFO dev.magadiflo.app.creations.CustomExecutor -- Ejecución finalizada en pool personalizado
 ````
 
 ¿Por qué usar un Executor personalizado?
@@ -219,3 +241,4 @@ Por defecto, `CompletableFuture` usa el `ForkJoinPool.commonPool()`. Sin embargo
    (ej. 50 hilos para envío de correos, 10 para reportes).
 3. `Monitoreo`: Los pools personalizados permiten trackear métricas como hilos activos, tareas en cola y tiempos de
    ejecución de forma más sencilla.
+

@@ -8,7 +8,7 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 public class RunAsync {
     public static void main(String[] args) throws InterruptedException {
-        log.info("Iniciando ejecución de tarea asíncrona");
+        log.info("Inicia método main");
 
         // 1. Uso de runAsync para tareas que NO devuelven un valor (Runnable).
         // Al igual que supplyAsync, se ejecuta en el ForkJoinPool.commonPool por defecto.
@@ -27,6 +27,7 @@ public class RunAsync {
          * a los hilos del pool asíncrono. Usamos Thread.sleep aquí para mantener la
          * JVM viva el tiempo suficiente para que la tarea asíncrona complete su ejecución.
          */
+        log.info("Finaliza método main");
         Thread.sleep(Duration.ofSeconds(6));
     }
 }

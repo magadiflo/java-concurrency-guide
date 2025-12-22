@@ -10,6 +10,8 @@ import java.util.concurrent.Executors;
 @Slf4j
 public class CustomExecutor {
     public static void main(String[] args) throws InterruptedException {
+        log.info("Inicio de método main");
+
         // 1. Definimos un pool de hilos personalizado.
         // Esto evita el uso del ForkJoinPool.commonPool y nos da control total
         // sobre la cantidad de hilos y el ciclo de vida.
@@ -32,8 +34,9 @@ public class CustomExecutor {
 
         // NOTA: Es vital cerrar el executorService para liberar recursos
         // y permitir que la JVM finalice correctamente.
+
+        log.info("Fin del método main");
         Thread.sleep(Duration.ofSeconds(3));
         executorService.shutdown();
-        log.info("Fin del código");
     }
 }
