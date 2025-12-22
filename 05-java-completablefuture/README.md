@@ -86,11 +86,45 @@ Definiciones Clave
 
 ````java
 
+@Slf4j
+public class RunAsync {
+    public static void main(String[] args) throws InterruptedException {
+        log.info("Iniciando ejecución de tarea asíncrona");
+
+        // 1. Uso de runAsync para tareas que NO devuelven un valor (Runnable).
+        // Al igual que supplyAsync, se ejecuta en el ForkJoinPool.commonPool por defecto.
+        CompletableFuture<Void> completableFuture = CompletableFuture.runAsync(() -> {
+            try {
+                // Simulación de una tarea pesada (ej. envío de un correo o generación de logs)
+                Thread.sleep(Duration.ofSeconds(5));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            log.info("Finalizando ejecución de tarea asíncrona");
+        });
+
+        /*
+         * NOTA TÉCNICA: En aplicaciones de consola, el hilo principal (main) no espera
+         * a los hilos del pool asíncrono. Usamos Thread.sleep aquí para mantener la
+         * JVM viva el tiempo suficiente para que la tarea asíncrona complete su ejecución.
+         */
+        Thread.sleep(Duration.ofSeconds(6));
+    }
+}
+
 ````
 
 ````bash
-$ 
+11:57:12.379 [main] INFO dev.magadiflo.app.creations.RunAsync -- Iniciando ejecución de tarea asíncrona
+11:57:17.407 [ForkJoinPool.commonPool-worker-1] INFO dev.magadiflo.app.creations.RunAsync -- Finalizando ejecución de tarea asíncrona
 ````
+
+El `runAsync` se utiliza para ejecutar tareas que tienen efectos secundarios (side effects) pero no retornan un objeto.
+Ejemplos comunes:
+
+- Guardar un log en un archivo.
+- Enviar una notificación push o un email.
+- Actualizar una caché local.
 
 #### 1️⃣ `completedFuture` - Crear un Future ya completado con un valor.
 
