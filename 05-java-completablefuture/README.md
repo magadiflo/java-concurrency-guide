@@ -487,3 +487,58 @@ public class Handle {
 
 Es un método de post-procesamiento total. Recibe el resultado de la etapa anterior y la excepción (si la hubo). Si la
 etapa anterior tuvo éxito, la excepción será `null`; si falló, el resultado será `null`.
+
+### 🔸whenComplete - Ejecutar acción sin modificar el resultado
+
+Similar a `handle`, pero no transforma el resultado. Útil para logging o limpieza.
+
+````java
+
+@Slf4j
+public class WhenComplete {
+    public static void main(String[] args) throws InterruptedException {
+        log.info("Inicio del proceso asíncrono");
+
+        CompletableFuture<String> completableFuture = CompletableFuture.supplyAsync(() -> {
+                    try {
+                        Thread.sleep(Duration.ofSeconds(2));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    return "Datos procesados";
+                })
+                /*
+                 * 'whenComplete' actúa como un callback de monitoreo.
+                 * Se ejecuta al finalizar la etapa anterior, ya sea con éxito o error.
+                 * A diferencia de 'handle', NO puede cambiar el resultado ni el tipo del Future.
+                 */
+                .whenComplete((result, throwable) -> {
+                    if (throwable != null) {
+                        log.error("Log de auditoría: Fallo detectado -> {}", throwable.getMessage());
+                        // La excepción sigue su curso, no se "consume" aquí.
+                    } else {
+                        log.info("Log de auditoría: Éxito alcanzado con resultado: {}", result);
+                    }
+                });
+
+        // El valor que llega aquí es el original del supplyAsync,
+        // regardless de lo que haya pasado en whenComplete.
+        completableFuture.thenAccept(res -> log.info("Consumiendo resultado final: {}", res));
+
+        log.info("Hilo principal sigue su ejecución...");
+        Thread.sleep(Duration.ofSeconds(3));
+    }
+}
+````
+
+````bash
+17:01:01.308 [main] INFO dev.magadiflo.app.errorhandling.WhenComplete -- Inicio del proceso asíncrono
+17:01:01.326 [main] INFO dev.magadiflo.app.errorhandling.WhenComplete -- Hilo principal sigue su ejecución...
+17:01:03.337 [ForkJoinPool.commonPool-worker-1] INFO dev.magadiflo.app.errorhandling.WhenComplete -- Log de auditoría: Éxito alcanzado con resultado: Datos procesados
+17:01:03.339 [ForkJoinPool.commonPool-worker-1] INFO dev.magadiflo.app.errorhandling.WhenComplete -- Consumiendo resultado final: Datos procesados
+````
+
+#### ¿Qué es whenComplete?
+
+Es un método de consumo pasivo. Se utiliza para ejecutar efectos secundarios (logging, métricas, cerrar conexiones) sin
+alterar el resultado del pipeline asíncrono.
