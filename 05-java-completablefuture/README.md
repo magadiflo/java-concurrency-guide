@@ -165,3 +165,57 @@ Casos de Uso Principales
 Diferencia de Ejecución
 > A diferencia de `supplyAsync` o `runAsync`, `no se utiliza` el `ForkJoinPool` inicialmente. Todo ocurre de forma
 > `síncrona` a menos que se utilicen variantes asíncronas en el encadenamiento (como `thenAcceptAsync`).
+
+### 📌 Especificando un Executor personalizado
+
+````java
+
+@Slf4j
+public class CustomExecutor {
+    public static void main(String[] args) throws InterruptedException {
+        // 1. Definimos un pool de hilos personalizado.
+        // Esto evita el uso del ForkJoinPool.commonPool y nos da control total
+        // sobre la cantidad de hilos y el ciclo de vida.
+        ExecutorService executorService = Executors.newFixedThreadPool(10);
+
+        // 2. Pasamos el 'executorService' como segundo argumento.
+        // Ahora la tarea se ejecutará en uno de los 10 hilos de nuestro pool.
+        CompletableFuture<String> completableFuture = CompletableFuture.supplyAsync(() -> {
+            try {
+                log.info("Iniciando tarea en: {}", Thread.currentThread().getName());
+                Thread.sleep(Duration.ofSeconds(2));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return "Ejecución finalizada en pool personalizado";
+        }, executorService);
+
+        // 3. Callback para procesar el resultado
+        completableFuture.thenAccept(log::info);
+
+        // NOTA: Es vital cerrar el executorService para liberar recursos
+        // y permitir que la JVM finalice correctamente.
+        Thread.sleep(Duration.ofSeconds(3));
+        executorService.shutdown();
+        log.info("Fin del código");
+    }
+}
+````
+
+````bash
+12:30:08.806 [pool-1-thread-1] INFO dev.magadiflo.app.creations.CustomExecutor -- Iniciando tarea en: pool-1-thread-1
+12:30:10.813 [pool-1-thread-1] INFO dev.magadiflo.app.creations.CustomExecutor -- Ejecución finalizada en pool personalizado
+12:30:11.811 [main] INFO dev.magadiflo.app.creations.CustomExecutor -- Fin del código
+````
+
+¿Por qué usar un Executor personalizado?
+
+Por defecto, `CompletableFuture` usa el `ForkJoinPool.commonPool()`. Sin embargo, en producción se prefiere un
+`Executor` propio por tres razones:
+
+1. `Aislamiento (Bulkhead)`: Si una tarea pesada bloquea todos los hilos del pool, no afectará a otras tareas
+   asíncronas del sistema que usen el pool común.
+2. `Control de Recursos`: Puedes definir exactamente cuántos hilos quieres asignar a un proceso específico
+   (ej. 50 hilos para envío de correos, 10 para reportes).
+3. `Monitoreo`: Los pools personalizados permiten trackear métricas como hilos activos, tareas en cola y tiempos de
+   ejecución de forma más sencilla.
