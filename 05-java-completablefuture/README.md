@@ -128,4 +128,40 @@ Ejemplos comunes:
 
 #### 1️⃣ `completedFuture` - Crear un Future ya completado con un valor.
 
+````java
 
+@Slf4j
+public class CompletedFuture {
+    public static void main(String[] args) {
+        // 1. Crea un CompletableFuture que ya nace en estado "Completado".
+        // No inicia ninguna tarea en hilos secundarios; el valor ya está disponible.
+        CompletableFuture<String> completableFuture = CompletableFuture.completedFuture("Valor inmediato");
+
+        // 2. Al estar ya completado, el callback 'thenAccept' se ejecuta 
+        // inmediatamente en el hilo que realiza la llamada (en este caso, el main).
+        completableFuture.thenAccept(resultado -> log.info("Procesando: {}", resultado));
+    }
+}
+````
+
+````bash
+12:04:28.801 [main] INFO dev.magadiflo.app.creations.CompletedFuture -- Valor inmediato 
+````
+
+¿Qué es `CompletableFuture.completedFuture`?
+
+Es un método de fábrica que devuelve una instancia de `CompletableFuture` que ya contiene un resultado. Es un estado
+final alcanzado de forma inmediata.
+
+Casos de Uso Principales
+
+- `Pruebas Unitarias (Mocking)`: Cuando necesitas simular una respuesta asíncrona en un test pero ya conoces el valor
+  de retorno.
+- `Optimización/Caché`: Si el dato que buscas ya está en memoria (caché), puedes devolverlo con `completedFuture` en
+  lugar de disparar un proceso asíncrono innecesario.
+- `Compatibilidad de API`: Cuando una interfaz te obliga a devolver un `CompletableFuture<T>`, pero tu implementación
+  ya tiene el resultado listo.
+
+Diferencia de Ejecución
+> A diferencia de `supplyAsync` o `runAsync`, `no se utiliza` el `ForkJoinPool` inicialmente. Todo ocurre de forma
+> `síncrona` a menos que se utilicen variantes asíncronas en el encadenamiento (como `thenAcceptAsync`).
