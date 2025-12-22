@@ -307,3 +307,59 @@ Características principales:
 - `Sincronía del paso`: Por defecto, la función dentro de `thenApply` se ejecuta en el mismo hilo que completó la tarea
   anterior (a menos que uses thenApplyAsync).
 - `Retorno`: Siempre devuelve un `CompletableFuture<U>`, donde U es el nuevo tipo de dato transformado.
+
+### 🔸 thenCompose - Encadenar operaciones asíncronas dependientes
+
+Usado cuando la siguiente operación también es asíncrona y depende del resultado anterior. Evita el anidamiento de
+`CompletableFutures` (`CompletableFuture<CompletableFuture<T>>`).
+
+````java
+
+@Slf4j
+public class ThenCompose {
+    public static void main(String[] args) throws InterruptedException {
+        // pipeline asíncrono: Usuario -> Pedidos -> Detalles
+
+        CompletableFuture<List<String>> orderDetailsFuture = CompletableFuture
+                .supplyAsync(() -> getUser(1))
+                // 'thenCompose' se usa cuando la siguiente función devuelve otro CompletableFuture.
+                // Aplica un "aplanamiento" (flattening), evitando tener un CompletableFuture<CompletableFuture<String>>.
+                .thenCompose(user -> CompletableFuture.supplyAsync(() -> getOrdersByUser(user)))
+                // Encadenamos otra operación asíncrona dependiente de la anterior.
+                .thenCompose(orders -> CompletableFuture.supplyAsync(() -> getOrderDetails(orders)));
+
+        // Consumo del resultado final (la lista de detalles)
+        orderDetailsFuture.thenAccept(details -> log.info("Proceso completado: {}", details));
+
+        // Mantenemos el hilo main vivo para que los hilos del pool terminen su tarea.
+        Thread.sleep(Duration.ofSeconds(1));
+    }
+
+    private static String getUser(int userId) {
+        return "usuario-" + userId;
+    }
+
+    private static String getOrdersByUser(String user) {
+        return "orders-" + user;
+    }
+
+    private static List<String> getOrderDetails(String orders) {
+        return List.of("orders-details-" + orders);
+    }
+}
+````
+
+````bash
+13:20:48.580 [ForkJoinPool.commonPool-worker-1] INFO dev.magadiflo.app.composition.ThenCompose -- Proceso completado: [orders-details-orders-usuario-1] 
+````
+
+#### ¿Por qué usar thenCompose?
+
+Se utiliza para orquestar servicios dependientes. Si el `Servicio A` devuelve un `Future` y el `Servicio B`
+también devuelve un `Future` basado en el resultado de A, `thenCompose` une ambos de forma que el resultado final sea
+un solo `Future` plano.
+
+### 🔑 Diferencia clave:
+
+- `thenApply`: Transforma el resultado de forma síncrona (`T -> U`)
+- `thenCompose`: Encadena otra operación asíncrona (`T -> CompletableFuture<U>`)
