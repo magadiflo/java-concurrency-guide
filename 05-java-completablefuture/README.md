@@ -429,3 +429,61 @@ un flujo de datos normal mediante un valor por defecto.
 - `Transformación`: Convierte un objeto de tipo `Throwable` en un valor del mismo tipo que esperaba el Future original.
 - `Ubicación`: Generalmente se coloca al final de la cadena de métodos para capturar errores de cualquier etapa previa.
 
+### 🔸 handle - Manejar tanto éxito como error
+
+Permite procesar tanto el resultado exitoso como la excepción en un solo lugar. El método handle es el "navaja suiza"
+del manejo de errores en `CompletableFuture`. A diferencia de `exceptionally`, que solo se ejecuta cuando algo sale
+mal, `handle` siempre se ejecuta, sin importar si la etapa anterior terminó con éxito o con una excepción.
+
+````java
+
+@Slf4j
+public class Handle {
+    public static void main(String[] args) throws InterruptedException {
+        log.info("Inicio del proceso con handle");
+
+        CompletableFuture<String> completableFuture = CompletableFuture.supplyAsync(() -> {
+                    try {
+                        Thread.sleep(Duration.ofSeconds(2));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+
+                    if (Math.random() > 0.5) {
+                        throw new RuntimeException("Fallo crítico en el cálculo");
+                    }
+                    return "Datos procesados correctamente";
+                })
+                /*
+                 * 'handle' recibe dos parámetros: (resultado, excepción).
+                 * Es una etapa de transformación BiFunction que se ejecuta SIEMPRE.
+                 * Permite centralizar la lógica de éxito y error en un solo lugar.
+                 */
+                .handle((result, throwable) -> {
+                    if (Objects.nonNull(throwable)) {
+                        log.warn("Lógica de recuperación: El sistema falló.");
+                        return "Fallback: " + throwable.getMessage();
+                    }
+                    // Si no hay error, podemos transformar el resultado exitoso
+                    return "Resultado final -> " + result.toUpperCase();
+                });
+
+        completableFuture.thenAccept(log::info);
+
+        log.info("Hilo principal libre (no bloqueado)");
+        Thread.sleep(Duration.ofSeconds(3));
+    }
+}
+````
+
+````bash
+16:30:36.387 [main] INFO dev.magadiflo.app.errorhandling.Handle -- Inicio del proceso con handle
+16:30:36.403 [main] INFO dev.magadiflo.app.errorhandling.Handle -- Hilo principal libre (no bloqueado)
+16:30:38.414 [ForkJoinPool.commonPool-worker-1] WARN dev.magadiflo.app.errorhandling.Handle -- Lógica de recuperación: El sistema falló.
+16:30:38.415 [ForkJoinPool.commonPool-worker-1] INFO dev.magadiflo.app.errorhandling.Handle -- Fallback: java.lang.RuntimeException: Fallo crítico en el cálculo
+````
+
+#### ¿Qué es handle?
+
+Es un método de post-procesamiento total. Recibe el resultado de la etapa anterior y la excepción (si la hubo). Si la
+etapa anterior tuvo éxito, la excepción será `null`; si falló, el resultado será `null`.
