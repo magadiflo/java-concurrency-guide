@@ -15,10 +15,10 @@ Son instancias de `java.lang.Thread` que no están vinculadas `1:1` con los hilo
 
 ### ✨ Características Principales
 
-- **🪶 Ligeros**: Consumen muy poca memoria (pocos KB vs ~1MB de platform threads).
-- **⚡ Baratos de crear**: Se pueden crear millones sin degradar el rendimiento.
-- **🔄 Transparentes**: Usan la misma API de Thread que conoces.
-- **🎯 Optimizados para I/O**: Perfectos para operaciones de entrada/salida bloqueantes.
+- **Ligeros**: Consumen muy poca memoria (pocos KB vs ~1MB de platform threads).
+- **Baratos de crear**: Se pueden crear millones sin degradar el rendimiento.
+- **Transparentes**: Usan la misma API de Thread que conoces.
+- **Optimizados para I/O**: Perfectos para operaciones de entrada/salida bloqueantes.
 
 > 💡 En esencia, permiten escribir código bloqueante tradicional, pero con escalabilidad masiva.
 
@@ -53,11 +53,6 @@ Son instancias de `java.lang.Thread` que no están vinculadas `1:1` con los hilo
 | **📌 Thread Pinning**   | No aplica                                             | Puede ocurrir con synchronized                                |
 | **🛠️ Pool necesario**  | Sí (ExecutorService)                                  | No recomendado                                                |
 
-💡 Ejemplo laboral:
-
-- `Platform threads`: procesamiento de imágenes pesadas en batch.
-- `Virtual threads`: servidor HTTP que atiende miles de peticiones concurrentes de clientes.
-
 ## 🚀 Project Loom
 
 **Project Loom** es la iniciativa de OpenJDK que introduce los Virtual Threads en Java. Su objetivo principal es
@@ -78,9 +73,176 @@ Java 20 (Mar 2023) → Second Preview
 Java 21 (Sep 2023) → Feature Estable ✅
 ```
 
+## 📌 Cuándo usar Virtual Threads (Limitado por la I/O)
+
+Ideal para tareas donde el hilo pasa la mayor parte del tiempo `esperando`.
+
+- ✅ `Consultas a Bases de Datos`: Esperar la respuesta de un SELECT o UPDATE.
+- ✅ `Llamadas HTTP/APIs`: Consultar servicios externos (REST, SOAP).
+- ✅ `Sistemas de Archivos`: Leer o escribir logs y documentos pesados.
+- ✅ `Microservicios`: Manejar miles de usuarios simultáneos sin agotar la RAM.
+
+`Ejemplo real`: Un servidor Tomcat que antes colapsaba con 500 usuarios, con Virtual Threads puede soportar 50,000 con
+el mismo hardware.
+
+## ❌ Cuándo NO usarlos (Limitado por la CPU)
+
+No sirven si la tarea requiere procesamiento puro y constante del procesador (ahí conviene usar platform threads o
+ForkJoinPool).
+
+- ❌ `Criptografía y Hash`: Minería de datos o cifrado de archivos grandes.
+- ❌ `Compresión`: Comprimir carpetas a `.zip` o convertir formatos de video.
+- ❌ `Cálculos Matemáticos`: Procesamiento de matrices o simulaciones complejas.
+- ❌ `Uso de synchronized largo`: Si el código usa bloqueos antiguos (`synchronized`), el hilo virtual se `ataca` al
+  real (Pinning) y pierde su ventaja.
+
+`Ejemplo real`: Si tienes 8 núcleos de CPU, no importa si usas hilos virtuales; no podrás procesar más de 8 cálculos
+matemáticos pesados exactamente al mismo tiempo.
+
+> ⚠️ `Virtual Threads` no hacen más rápido el CPU, solo escalan mejor el I/O.
+
+## ⚙️ Platform Threads vs Virtual Threads
+
+### 🧱 Platform Threads (hilos tradicionales)
+
+- Mapeados 1:1 con hilos del sistema operativo
+- Costosos en memoria (~1MB por hilo)
+- Bloquean recursos del SO cuando esperan I/O
+- Limitados en cantidad (miles como máximo)
+
+````java
+
+@Slf4j
+public class Platform {
+    public static void main(String[] args) {
+        demo1();
+        demo2();
+        demo3();
+        demo4();
+    }
+
+    private static void demo1() {
+        Thread thread = new Thread(() -> {
+            log.info("demo1(): Platform thread");
+        });
+        thread.start();
+    }
+
+    private static void demo2() {
+        Thread.ofPlatform().start(() -> {
+            log.info("demo2(): Platform thread");
+        });
+    }
+
+    private static void demo3() {
+        // Estilo moderno con Builder
+        Thread t = Thread.ofPlatform()
+                .name("mi-hilo-proceso")
+                .daemon(true)
+                .priority(Thread.MAX_PRIORITY)
+                .unstarted(() -> log.info("demo3(): Platform thread"));
+
+        t.start();
+    }
+
+    // Usando un ExecutorService:
+    private static void demo4() {
+        try (ExecutorService executorService = Executors.newFixedThreadPool(5)) {
+            executorService.submit(() -> {
+                log.info("demo4(): Platform thread");
+            });
+        }
+    }
+}
+````
+
+| Método    | Tipo                | ¿Cuándo usarlo?                                                                                                                                                                                              |
+|-----------|---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `demo1()` | Constructor clásico | Tareas rápidas y simples. Es el estándar antiguo.                                                                                                                                                            |
+| `demo2()` | Builder moderno     | Cuando quieres crear un hilo y lanzarlo de inmediato con la nueva API.                                                                                                                                       |
+| `demo3()` | Builder configurado | El mejor para control total. Permite configurar nombre, prioridad y si es de tipo Daemon (hilo de segundo plano que no impide que el programa se cierre automáticamente al terminar las tareas principales). |
+| `demo4()` | ExecutorService     | El mejor para aplicaciones reales. No creas hilos manualmente, sino que los "alquilas" de un pool para reutilizarlos.                                                                                        |
+
+````bash
+16:36:45.504 [mi-hilo-proceso] INFO dev.magadiflo.app.Platform -- demo3(): Platform thread
+16:36:45.504 [Thread-1] INFO dev.magadiflo.app.Platform -- demo2(): Platform thread
+16:36:45.504 [Thread-0] INFO dev.magadiflo.app.Platform -- demo1(): Platform thread
+16:36:45.511 [pool-1-thread-1] INFO dev.magadiflo.app.Platform -- demo4(): Platform thread
+````
+
+| Método                | Estilo               | Notas técnicas                                                                                                              |
+|-----------------------|----------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| `new Thread()`        | Tradicional (Legacy) | Es la forma clásica desde Java 1.0. Útil para instanciación rápida, pero menos flexible.                                    |
+| `Thread.ofPlatform()` | Fluido (Moderno)     | Introducido en `Java 19/21`. Utiliza el patrón Builder, permitiendo configurar nombre, prioridad y daemon antes de iniciar. |
+
+- La ventaja de `ofPlatform()` es que permite encadenar configuraciones de forma mucho más legible que el constructor
+  tradicional.
+- Ambos métodos consumen aproximadamente 1MB de memoria RAM por hilo (Stack Memory).
+- Ambos son gestionados directamente por el Planificador del Sistema Operativo (OS Scheduler).
+- Se recomienda usar la API moderna (ofPlatform()) por consistencia si también estás usando Virtual Threads
+  (ofVirtual()) en tu proyecto.
+
+### 🪶 Virtual Threads
+
+- Administrados por la JVM.
+- Consumen muy poca memoria.
+- Se pueden crear por millones.
+- Al bloquearse, liberan el hilo del SO.
+
+En la siguiente clase, los tres métodos son equivalentes en el sentido de que todos lanzan la tarea dentro de un
+`Virtual Thread`. Sin embargo, al igual que con los hilos de plataforma, existen matices importantes en la sintaxis y
+el uso recomendado.
+
+````java
+
+@Slf4j
+public class Virtual {
+    public static void main(String[] args) throws InterruptedException {
+        demo1();
+        demo2();
+        demo3();
+
+        Thread.sleep(Duration.ofSeconds(1));
+    }
+
+    private static void demo1() {
+        Thread.ofVirtual().start(() -> {
+            log.info("demo1(): Virtual Thread");
+        });
+    }
+
+    private static void demo2() {
+        Thread.startVirtualThread(() -> {
+            log.info("demo2(): Virtual Thread");
+        });
+    }
+
+    // Usando un ExecutorService:
+    private static void demo3() {
+        try (ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor()) {
+            executorService.submit(() -> {
+                log.info("demo3(): Virtual Thread");
+            });
+        }
+    }
+}
+````
+
+| Método    | Tipo                    | ¿Cuándo usarlo?                                                                                                                                                |
+|-----------|-------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `demo1()` | Builder (`ofVirtual`)   | El más flexible. Permite configurar el nombre del hilo o características adicionales antes de iniciarlo. Es consistente con la API de hilos de plataforma.     |
+| `demo2()` | Método estático directo | El más simple. Es un "shortcut" (acceso rápido) diseñado para lanzar una tarea rápido sin configuraciones extra. No permite poner nombres personalizados.      |
+| `demo3()` | ExecutorService         | El estándar para aplicaciones. Ideal para manejar flujos de trabajo masivos. El `try-with-resources` asegura que el programa espere a que las tareas terminen. |
+
+````bash
+16:38:15.058 [virtual-27] INFO dev.magadiflo.app.Virtual -- demo2(): Virtual Thread
+16:38:15.058 [virtual-25] INFO dev.magadiflo.app.Virtual -- demo1(): Virtual Thread
+16:38:15.059 [virtual-32] INFO dev.magadiflo.app.Virtual -- demo3(): Virtual Thread
+````
+
 ## 📝 Ejemplo Comparativo
 
-### 1. Implementación con Platform Threads (Hilos de Plataforma)
+### 🧱 1. Implementación con Platform Threads (Hilos de Plataforma)
 
 En este enfoque, estamos utilizando un modelo de concurrencia basado en el `Sistema Operativo (SO)`.
 
@@ -150,7 +312,7 @@ public class PlatformThreadExample {
 
 Le tomó aproximadamente `1 minuto 40 segundos` en finalizar la ejecución.
 
-### 2. Implementación con Virtual Threads (Hilos Virtuales)
+### 🪶 2. Implementación con Virtual Threads (Hilos Virtuales)
 
 Este enfoque, introducido en `Java 21 (Project Loom)`, cambia las reglas del juego al desacoplar los hilos de Java
 de los hilos del SO.
