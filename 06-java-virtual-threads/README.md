@@ -25,7 +25,16 @@ Son instancias de `java.lang.Thread` que no están vinculadas `1:1` con los hilo
 ### 💡 Concepto Clave
 
 - `Platform Thread`: Wrapper de un OS Thread (pesado, limitado)
+  ```
+  Java Thread → OS Thread → CPU Core
+  (1:1 mapping, limitado por OS)
+  ```
+
 - `Virtual Thread`: Hilo gestionado por la JVM (ligero, escalable)
+  ```
+  Java Virtual Thread → Carrier Thread (Platform) → CPU Core
+  (M:N mapping, muchos virtual threads sobre pocos carrier threads)
+  ```
 
 ### 🔄 Diferencias con Platform Threads
 
