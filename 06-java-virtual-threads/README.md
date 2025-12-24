@@ -201,43 +201,58 @@ public class Virtual {
         demo1();
         demo2();
         demo3();
-
-        Thread.sleep(Duration.ofSeconds(1));
+        demo4();
     }
 
-    private static void demo1() {
-        Thread.ofVirtual().start(() -> {
-            log.info("demo1(): Virtual Thread");
-        });
+    private static void demo1() throws InterruptedException {
+        Thread virtualThread = Thread.ofVirtual()
+                .start(() -> {
+                    log.info("demo1(): Virtual Thread");
+                });
+
+        virtualThread.join();
     }
 
-    private static void demo2() {
-        Thread.startVirtualThread(() -> {
-            log.info("demo2(): Virtual Thread");
+    private static void demo2() throws InterruptedException {
+        Thread virtualThread = Thread.ofVirtual()
+                .unstarted(() -> {
+                    log.info("demo2(): Virtual Thread");
+                });
+
+        virtualThread.start();
+        virtualThread.join();
+    }
+
+    private static void demo3() throws InterruptedException {
+        Thread virtualThread = Thread.startVirtualThread(() -> {
+            log.info("demo3(): Virtual Thread");
         });
+        virtualThread.join();
     }
 
     // Usando un ExecutorService:
-    private static void demo3() {
+    private static void demo4() {
         try (ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor()) {
             executorService.submit(() -> {
-                log.info("demo3(): Virtual Thread");
+                log.info("demo4(): Virtual Thread");
             });
         }
     }
 }
 ````
 
-| Método    | Tipo                    | ¿Cuándo usarlo?                                                                                                                                                |
-|-----------|-------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `demo1()` | Builder (`ofVirtual`)   | El más flexible. Permite configurar el nombre del hilo o características adicionales antes de iniciarlo. Es consistente con la API de hilos de plataforma.     |
-| `demo2()` | Método estático directo | El más simple. Es un "shortcut" (acceso rápido) diseñado para lanzar una tarea rápido sin configuraciones extra. No permite poner nombres personalizados.      |
-| `demo3()` | ExecutorService         | El estándar para aplicaciones. Ideal para manejar flujos de trabajo masivos. El `try-with-resources` asegura que el programa espere a que las tareas terminen. |
+| Método    | Tipo                    | Descripción                                                                                                                                                                            |
+|-----------|-------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `demo1()` | Fluent API - Start      | Es la forma más descriptiva. Usas el builder `Thread.ofVirtual()` y lo lanzas inmediatamente. Es muy legible.                                                                          |
+| `demo2()` | Fluent API - Unstarted  | Esta es clave. Te permite configurar el hilo (ponerle nombre, prioridad, etc.) antes de que empiece a correr. Es útil cuando el hilo debe crearse en un sitio pero ejecutarse en otro. |
+| `demo3()` | Método estático directo | El más simple. Es un "shortcut" (acceso rápido) diseñado para lanzar una tarea rápido sin configuraciones extra. No permite poner nombres personalizados.                              |
+| `demo4()` | ExecutorService         | El estándar para aplicaciones. Ideal para manejar flujos de trabajo masivos. El `try-with-resources` asegura que el programa espere a que las tareas terminen.                         |
 
 ````bash
-16:38:15.058 [virtual-27] INFO dev.magadiflo.app.Virtual -- demo2(): Virtual Thread
-16:38:15.058 [virtual-25] INFO dev.magadiflo.app.Virtual -- demo1(): Virtual Thread
-16:38:15.059 [virtual-32] INFO dev.magadiflo.app.Virtual -- demo3(): Virtual Thread
+12:57:59.437 [virtual-25] INFO dev.magadiflo.app.Virtual -- demo1(): Virtual Thread
+12:57:59.444 [virtual-30] INFO dev.magadiflo.app.Virtual -- demo2(): Virtual Thread
+12:57:59.444 [virtual-31] INFO dev.magadiflo.app.Virtual -- demo3(): Virtual Thread
+12:57:59.448 [virtual-32] INFO dev.magadiflo.app.Virtual -- demo4(): Virtual Thread
 ````
 
 ## 📝 Ejemplo Comparativo
