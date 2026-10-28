@@ -31,7 +31,7 @@ control, lo que permite que un `programa realice múltiples tareas de manera con
 - ` Entorno multihilo (multi-thread)`: la JVM es un entorno que soporta la ejecución de múltiples hilos dentro del mismo
   proceso, lo que permite que varias tareas avancen de forma concurrente.
 - `Soporte de lenguaje`: Java ofrece soporte de hilos mediante la clase Thread y la interfaz Runnable. Además, la clase
-  Object proporciona métodos básicos de coordinación (wait(), notify(), notifyAll()).
+  Object proporciona métodos básicos de coordinación (wait (), notify (), notifyAll ()).
 - `Gestión y planificación`: en la práctica la JVM colabora con el sistema operativo para la planificación de hilos
   (modelo 1:1 en la mayoría de implementaciones). La JVM y el SO gestionan cuándo y en qué orden se ejecutan los hilos,
   así como prioridades y cambios de contexto.
@@ -54,8 +54,8 @@ control, lo que permite que un `programa realice múltiples tareas de manera con
   problemas de visibilidad de memoria. Se requieren mecanismos de sincronización (por ejemplo, synchronized, volatile,
   Lock, colecciones concurrentes) para evitarlos.
 - `Buenas prácticas (resumen)`: preferir abstracciones de alto nivel (por ejemplo `ExecutorService`) sobre la gestión
-  manual de Thread, minimizar el estado mutable compartido, y usar las utilidades de la concurrencia (
-  java.util.concurrent) cuando sea posible.
+  manual de Thread, minimizar el estado mutable compartido, y usar las utilidades de la concurrencia
+  (java.util.concurrent) cuando sea posible.
 
 ### 🏭 Analogía de la Fábrica para Hilos en Java
 
@@ -65,10 +65,10 @@ Imagina que tienes una fábrica 🏭 (tu programa/proceso).
   el almacén de herramientas (la memoria RAM compartida), y el plan de trabajo.
 - El `Hilo (Thread)`: Es un `trabajador individual` dentro de la fábrica.
     - `Unidad de Ejecución`: El trabajador está realizando una tarea específica (cortar, ensamblar, pintar).
-    - `Pila (Stack)`: Cada trabajador tiene su propia bandeja de herramientas y lista de instrucciones personales
-      (la pila de memoria), que nadie más usa.
-    - `Recursos Compartidos`: Todos los trabajadores (hilos) comparten el mismo almacén grande
-      (la memoria heap y variables estáticas).
+    - `Pila (Stack)`: Cada trabajador tiene su propia bandeja de herramientas y lista de instrucciones personales (la
+      pila de memoria), que nadie más usa.
+    - `Recursos Compartidos`: Todos los trabajadores (hilos) comparten el mismo almacén grande (la memoria heap y
+      variables estáticas).
     - `Condición de Carrera`: Si dos trabajadores intentan tomar el último martillo del almacén o anotar el número
       de productos terminados al mismo tiempo sin coordinarse, habrá un error (inconsistencia).
 
@@ -425,14 +425,13 @@ public class BlockedState {
         Thread.sleep(100); // Dar tiempo para que thread2 intente el lock
 
         log.info("Estado thread2: {}", thread2.getState());
-        thread1.interrupt();
     }
 }
 ````
 
 ````bash
-20:04:08.307 [main] INFO dev.magadiflo.app.lifecycle.BlockedState -- Estado thread2: BLOCKED
-20:04:08.314 [Thread-1] INFO dev.magadiflo.app.lifecycle.BlockedState -- Thread 2 obtuvo el lock
+16:45:35.437 [main] INFO dev.magadiflo.app.lifecycle.BlockedState -- Estado thread2: BLOCKED
+16:45:40.219 [Thread-1] INFO dev.magadiflo.app.lifecycle.BlockedState -- Thread 2 obtuvo el lock
 ````
 
 ### `4. WAITING`
@@ -536,7 +535,7 @@ public class TerminatedState {
 20:32:15.878 [main] INFO dev.magadiflo.app.lifecycle.TerminatedState -- Estado: TERMINATED
 ````
 
-## 🔔 Métodos wait(), notify() y notifyAll() en Java
+## 🔔 Métodos wait (), notify () y notifyAll () en Java
 
 Los métodos `wait()`, `notify()` y `notifyAll()` son parte de la clase base `java.lang.Object` y forman el núcleo de
 la comunicación entre hilos (`thread communication`).
@@ -558,12 +557,12 @@ coordinar la ejecución.
 
 ### ⚙️ Descripción de los Métodos
 
-| Método                 | Descripción                                                                                                                                                                            | Estado del Hilo |
-|:-----------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:----------------|
+| Método                  | Descripción                                                                                                                                                                            | Estado del Hilo |
+|:------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:----------------|
 | `wait()` ⏳             | Hace que el hilo `libere el monitor` y entre en estado de espera (`WAITING`). El hilo no puede continuar hasta que otro hilo invoque `notify()` o `notifyAll()` sobre el mismo objeto. | `WAITING`       |
 | `wait(long timeout)` ⏰ | Igual que `wait()`, pero el hilo esperará **solo el tiempo especificado** (en milisegundos).                                                                                           | `TIMED_WAITING` |
-| `notify()` 🔔          | Despierta `un solo hilo` que esté esperando sobre el monitor del objeto. No garantiza cuál hilo será despertado si hay varios en espera.                                               | —               |
-| `notifyAll()` 📢       | Despierta a `todos los hilos` que están esperando sobre el mismo objeto; solo uno continuará cuando obtenga el bloqueo.                                                                | —               |
+| `notify()` 🔔           | Despierta `un solo hilo` que esté esperando sobre el monitor del objeto. No garantiza cuál hilo será despertado si hay varios en espera.                                               | —               |
+| `notifyAll()` 📢        | Despierta a `todos los hilos` que están esperando sobre el mismo objeto; solo uno continuará cuando obtenga el bloqueo.                                                                | —               |
 
 ⚠️ Todos estos métodos deben ser llamados dentro de un bloque sincronizado (`synchronized`), de lo contrario lanzarán
 una excepción `IllegalMonitorStateException`.
@@ -742,7 +741,7 @@ con el método `start()`:
 - El objeto `Thread` existe, pero su método `run()` todavía no se ha ejecutado.
 - El hilo se encuentra en el estado inicial (`NEW`) del ciclo de vida.
 
-#### ▶️ Iniciando el hilo con start()
+#### ▶️ Iniciando el hilo con start ()
 
 Ahora agregamos la llamada a `start()` para iniciar la ejecución del hilo:
 
@@ -1452,7 +1451,7 @@ sincronizarse con él, evitando bloqueos inesperados y mejorando el control de l
 
 | Opción                        | Nivel del bloqueo                             | ¿Cuándo se usa?                                                                        | Impacto en concurrencia                                                      | Ejemplo                                                      |
 |-------------------------------|-----------------------------------------------|----------------------------------------------------------------------------------------|------------------------------------------------------------------------------|--------------------------------------------------------------|
-| `synchronized(lock)`          | Solo la región crítica dentro de la instancia | Cuando queremos bloquear **solo un recurso interno** y tener control total del monitor | Mejor rendimiento y aislamiento ✅                                            | `synchronized(lock) { money += amount; }`                    |
+| `synchronized(lock)`          | Solo la región crítica dentro de la instancia | Cuando queremos bloquear **solo un recurso interno** y tener control total del monitor | Mejor rendimiento y aislamiento ✅                                           | `synchronized(lock) { money += amount; }`                    |
 | `synchronized(this)`          | Toda la instancia del objeto                  | Cuando el estado completo del objeto debe protegerse                                   | Cualquier código que sincronice sobre la misma instancia puede bloquearlo ⚠️ | `synchronized(this) { money += amount; }`                    |
 | `synchronized(CashBox.class)` | Clase completa (todas las instancias)         | Métodos `static` o recursos globales compartidos entre todas las instancias            | Reduce mucho la concurrencia y puede crear cuellos de botella 🚧             | `synchronized(CashBox.class) { /* critical static code */ }` |
 

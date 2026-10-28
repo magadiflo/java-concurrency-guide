@@ -34,6 +34,5 @@ public class BlockedState {
         Thread.sleep(100); // Dar tiempo para que thread2 intente el lock
 
         log.info("Estado thread2: {}", thread2.getState());
-        thread1.interrupt();
     }
 }
