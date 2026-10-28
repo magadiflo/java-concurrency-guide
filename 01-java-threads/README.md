@@ -474,6 +474,25 @@ public class WaitingState {
 20:18:24.231 [main] INFO dev.magadiflo.app.lifecycle.WaitingState -- Estado: WAITING
 ````
 
+#### 📝 ¿Cómo funciona este ejemplo?
+
+1. El hilo thread entra en el bloque `synchronized(lock)` y adquiere el monitor del objeto `lock`.
+2. Al ejecutar `lock.wait()`, **el hilo libera el monitor y pasa al estado `WAITING`**, esperando una notificación.
+3. El hilo principal (`main`), después de `Thread.sleep(100)`, consulta el estado del hilo y muestra `WAITING` en el
+   log.
+4. Luego, el hilo principal entra en `synchronized(lock)`, adquiere el monitor que quedó libre y ejecuta
+   `lock.notify()`,
+   notificando al hilo que estaba esperando.
+
+#### ¿Por qué puede entrar en ese último bloque si lock estaba tomado?
+
+Porque cuando el hilo ejecuta `lock.wait()`, libera el monitor de `lock`. Por eso, el hilo principal puede adquirirlo y
+llamar a `notify()`.
+
+> **Importante:** `notify()` no libera inmediatamente el monitor ni hace que el hilo notificado continúe ejecutándose
+> dentro del bloque `synchronized`. El hilo notificado debe esperar a que el hilo principal salga del bloque y libere
+> el monitor para poder continuar.
+
 ### `5. TIMED_WAITING`
 
 - Similar a `WAITING`, pero el hilo `espera por un tiempo determinado`.
