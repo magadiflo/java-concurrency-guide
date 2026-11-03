@@ -168,10 +168,10 @@ Cuando una variable se declara `volatile`:
 
 | Tipo de garantía       | `volatile`                     | `synchronized`               |
 |------------------------|--------------------------------|------------------------------|
-| Visibilidad de memoria | ✅ Sí                           | ✅ Sí                         |
-| Atomicidad             | ❌ No                           | ✅ Sí                         |
-| Bloqueo de otros hilos | ❌ No                           | ✅ Sí                         |
-| Performance            | ⚡ Alta                         | 🧱 Más costosa               |
+| Visibilidad de memoria | ✅ Sí                          | ✅ Sí                        |
+| Atomicidad             | ❌ No                          | ✅ Sí                        |
+| Bloqueo de otros hilos | ❌ No                          | ✅ Sí                        |
+| Performance            | ⚡ Alta                        | 🧱 Más costosa               |
 | Uso ideal              | Variables de control o “flags” | Secciones críticas de código |
 
 ### 🧭 Cuándo usar volatile
@@ -390,7 +390,7 @@ Aunque modifiques la lista original, la copia interna del objeto permanece intoc
 20:29:12.911 [main] INFO dev.magadiflo.app.immutability.ImmutableUser -- Objeto final: ImmutableUser{name='Milagros', roles=[USER]}
 ````
 
-### 🧨 Por qué es peligroso no usar List.copyOf(...)
+### 🧨 Por qué es peligroso no usar List.copyOf (...)
 
 Este ejemplo muestra cómo, si no hacemos una copia defensiva, nuestro objeto "supuestamente inmutable" deja de serlo
 sin que nos demos cuenta.
@@ -614,7 +614,7 @@ Tu record parece inmutable, pero en realidad su estado puede cambiar “por dent
 
 ### 🛡️ ¿Cómo lograr inmutabilidad real si recibes un objeto mutable?
 
-Tienes dos enfoques válidos:
+Tenemos tres enfoques:
 
 #### ✔️ Opción A: Hacer el objeto interno inmutable (la ideal)
 
@@ -625,18 +625,18 @@ record Role(String name) {
 }
 ````
 
-Si haces eso, automáticamente:
+Si haces eso:
 
-- `Role` no tiene setters.
-- Su estado no puede cambiar.
-- `UserRecord` será 100% inmutable.
+- `Role` no tendrá setters.
+- Su estado no podrá modificarse después de su creación.
+- `UserRecord` también será inmutable, siempre que todos sus componentes sean inmutables.
 
-Es la opción recomendada en el mundo real.
+Es la opción recomendada cuando tenemos control sobre las clases que utilizamos.
 
-#### ✔️ Opción B: Hacer copia defensiva profunda en el constructor
+#### ✔️ Opción B: Hacer una copia defensiva en el constructor
 
-Cuando no puedes modificar el objeto original (viene de otra librería, es legacy, etc.), debes proteger tu record
-copiando manualmente el objeto:
+Cuando no puedes modificar el objeto original (porque viene de otra librería, es legacy, etc.), puedes proteger tu
+record copiando el objeto recibido:
 
 ````java
 
@@ -645,7 +645,7 @@ public class ImmutableObjectInRecordDemo {
 
     record UserRecord(String username, Role role) {
         UserRecord {
-            role = new Role(role.getName()); // copia profunda
+            role = new Role(role.getName()); // Copia defensiva
         }
     }
 
@@ -684,49 +684,169 @@ public class ImmutableObjectInRecordDemo {
 }
 ````
 
+Resultado:
+
 ````bash
-13:16:33.178 [main] INFO dev.magadiflo.app.immutability.ImmutableObjectInRecordDemo -- Antes: UserRecord[username=Milagros, role=Role{name='USER'}]
-13:16:33.218 [main] INFO dev.magadiflo.app.immutability.ImmutableObjectInRecordDemo -- Después: UserRecord[username=Milagros, role=Role{name='USER'}]
+16:48:43.916 [main] INFO dev.magadiflo.app.immutability.ImmutableObjectInRecordDemo -- Antes: UserRecord[username=Milagros, role=Role{name='USER'}]
+16:48:43.962 [main] INFO dev.magadiflo.app.immutability.ImmutableObjectInRecordDemo -- Después: UserRecord[username=Milagros, role=Role{name='USER'}]
 ````
 
-- Si un record contiene objetos mutables, su inmutabilidad es solo superficial.
-- Para lograr inmutabilidad real necesitas:
-    - Objetos internos también inmutables,
-    - O copias defensivas profundas del estado mutable.
+Observamos que, aunque modificamos el objeto `Role` original, el record conserva su propio objeto con el valor `USER`.
 
-### 🚀 Beneficios potentes de la inmutabilidad
+> **Limitación:** esta solución protege al record de modificaciones externas sobre el objeto recibido, pero todavía no
+> garantiza su inmutabilidad completa.  
+> **¿Por qué?** Porque el accessor generado automáticamente por el record devuelve la referencia al objeto interno:
+> ````java
+> public static void main(String[] args) {
+>     Role role = new Role("USER");
+>     UserRecord record = new UserRecord("Milagros", role);
+>     log.info("Antes: {}", record);
+> 
+>     role.setName("ADMIN");
+>     log.info("Después: {}", record);
+> 
+>     record.role().setName("SUPER_ADMIN"); // Obtenemos la referencia al objeto interno y lo modificamos
+>     log.info("Después: {}", record);
+> }
+> ````
+> Esta instrucción sí modificaría el objeto almacenado internamente.
+> ````bash
+> 17:00:11.189 [main] INFO dev.magadiflo.app.immutability.ImmutableObjectInRecordDemo -- Antes: UserRecord[username=Milagros, role=Role{name='USER'}]
+> 17:00:11.243 [main] INFO dev.magadiflo.app.immutability.ImmutableObjectInRecordDemo -- Después: UserRecord[username=Milagros, role=Role{name='USER'}]
+> 17:00:11.243 [main] INFO dev.magadiflo.app.immutability.ImmutableObjectInRecordDemo -- Después: UserRecord[username=Milagros, role=Role{name='SUPER_ADMIN'}]
+> ````
 
-| Beneficio                             | Descripción                                           |
-|---------------------------------------|-------------------------------------------------------|
-| **Thread-safe por naturaleza**        | No hay posibilidad de modificación concurrente.       |
-| **Fácil de razonar**                  | Si no cambia, no hay que pensar en sincronización.    |
-| **Cacheable**                         | Se pueden guardar instancias compartidas sin miedo.   |
-| **Ideal para concurrencia funcional** | Muy usado en programación reactiva y paralela.        |
-| **Evita bugs sutiles**                | Muchas condiciones de carrera desaparecen por diseño. |
+#### ✔️ Opción C: Copias defensivas al recibir y devolver objetos (solución completa)
+
+Para solucionar la limitación anterior, necesitamos proteger el objeto tanto al recibirlo como al exponerlo. Para ello:
+
+1. **En el constructor:** creamos una copia del objeto recibido, evitando que modificaciones externas afecten al estado
+   interno.
+2. **En el accessor:** sobrescribimos el método generado automáticamente para devolver una copia del objeto interno,
+   evitando que quien lo obtiene pueda modificarlo directamente.
+
+````java
+
+@Slf4j
+public class DefensiveCopyInRecordDemo {
+
+    record UserRecord(String username, Role role) {
+        UserRecord {
+            role = this.copyRole(role);
+        }
+
+        @Override
+        public Role role() {
+            return this.copyRole(this.role);
+        }
+
+        private Role copyRole(Role role) {
+            return new Role(role.getName());
+        }
+    }
+
+    static class Role {
+        private String name;
+
+        public Role(String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String toString() {
+            final StringBuilder sb = new StringBuilder("Role{");
+            sb.append("name='").append(name).append('\'');
+            sb.append('}');
+            return sb.toString();
+        }
+    }
+
+    public static void main(String[] args) {
+        Role role = new Role("USER");
+        UserRecord record = new UserRecord("Milagros", role);
+        log.info("Objeto inicial: {}", record);
+
+        // Modificamos el objeto original.
+        role.setName("ADMIN");
+        log.info("Objeto final: {}", record);
+
+        // Obtenemos una copia del objeto interno y la modificamos
+        record.role().setName("SUPER_ADMIN");
+        log.info("Objeto final 2: {}", record);
+    }
+}
+````
+
+Resultado:
+
+````bash
+17:11:01.277 [main] INFO dev.magadiflo.app.immutability.DefensiveCopyInRecordDemo -- Objeto inicial: UserRecord[username=Milagros, role=Role{name='USER'}]
+17:11:01.311 [main] INFO dev.magadiflo.app.immutability.DefensiveCopyInRecordDemo -- Objeto final: UserRecord[username=Milagros, role=Role{name='USER'}]
+17:11:01.311 [main] INFO dev.magadiflo.app.immutability.DefensiveCopyInRecordDemo -- Objeto final 2: UserRecord[username=Milagros, role=Role{name='USER'}] 
+````
+
+Como podemos observar, el valor interno de `role` permanece como `"USER"` en los tres casos. Esto sucede porque:
+
+- Cuando modificamos el objeto original, no afectamos al objeto interno del record.
+- Cuando invocamos `record.role()`, recibimos una copia independiente.
+- Cuando modificamos esa copia, tampoco afectamos al objeto interno.
+
+De esta manera, protegemos el estado interno del record tanto al recibir objetos como al devolverlos.
+
+> **Nota:** en este ejemplo hablamos de una copia defensiva profunda porque estamos copiando todo el estado mutable
+> de `Role`. Como su único atributo es un String, que es inmutable, basta con copiar su valor. Si `Role` tuviera otros
+> objetos mutables, también tendríamos que copiarlos.
+
+### 🚀 Beneficios de la inmutabilidad
+
+| Beneficio                                       | Descripción                                                                                                                                  |
+|-------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| **Seguridad en concurrencia**                   | Los objetos verdaderamente inmutables pueden compartirse entre múltiples hilos sin preocuparse por modificaciones concurrentes de su estado. |
+| **Fácil de razonar**                            | Si el estado no cambia, no hay que pensar en sincronización.                                                                                 |
+| **Cacheable**                                   | Sus instancias pueden compartirse y almacenarse en caché con mayor seguridad.                                                                |
+| **Ideal para programación reactiva y paralela** | Facilita el trabajo con datos compartidos entre diferentes operaciones e hilos.                                                              |
+| **Evita errores sutiles**                       | Reduce las condiciones de carrera provocadas por modificaciones concurrentes del estado.                                                     |
 
 ### 📌 La idea central
 
-El `record` te da:
+El `record` proporciona:
 
-- Campos finales
-- Constructor automático
-- equals/hashCode
-- No setters
+- Campos `private` `final`.
+- Constructor canónico automático.
+- Métodos accessors.
+- Implementaciones de `equals()`, `hashCode()` y `toString()`.
+- No genera setters.
 
-Pero `no te protege de estructuras mutables internas`. Para eso siempre necesitas una `copia defensiva`.
+Sin embargo, `no garantiza la inmutabilidad de los objetos mutables que contiene`. Para conseguir una inmutabilidad
+completa tenemos dos alternativas:
+
+1. Utilizar objetos internos también inmutables.
+2. Si necesitamos trabajar con objetos mutables, aplicar copias defensivas para proteger tanto la entrada como la salida
+   de esos objetos.
 
 ### 💬 Reflexión corta y útil
 
-La inmutabilidad es casi como escribir código a prueba de multiverso: no importa cuántas ejecuciones paralelas haya, el
-estado siempre será el mismo. Es una de las técnicas más recomendadas para evitar dolores de cabeza con concurrencia.
+La inmutabilidad es una de las técnicas más recomendadas para trabajar con concurrencia. Si varios hilos pueden
+compartir un objeto cuyo estado no cambia, evitamos muchos problemas relacionados con las modificaciones simultáneas.
 
-Si puedes diseñar algo como inmutable, casi siempre conviene hacerlo.
+Por eso, siempre que sea posible, conviene diseñar nuestros objetos como inmutables.
 
 ### 📌 Conclusión
 
-> El concepto de `inmutabilidad` es uno de los pilares fundamentales para alcanzar seguridad en la concurrencia
-> sin mecanismos extra de sincronización. Tener objetos cuyos valores nunca cambian convierte a tu aplicación en un
-> entorno más estable, más fácil de razonar y mucho menos propenso a errores.
+> La inmutabilidad es uno de los pilares para escribir código seguro y fácil de mantener en entornos concurrentes. Los
+> objetos inmutables permiten compartir información entre diferentes hilos sin preocuparnos por modificaciones
+> concurrentes de su estado.
+>
+> Cuando trabajamos con objetos mutables que no podemos modificar, podemos recurrir a las copias defensivas para
+> proteger el estado interno de nuestros objetos.
 
 ## 🧵 Thread-Safe Collections en Java
 
@@ -753,7 +873,7 @@ Las `colecciones thread-safe` se encargan de `proteger sus operaciones internas`
 #### ⚛️ Nota Adicional: ¿Qué Significa "Atómico"?
 
 > En el contexto de la programación concurrente (hilos), una operación es `atómica` si es `indivisible` e
-`ininterrumpible`.
+> `ininterrumpible`.
 >
 > - `Indivisible`: Significa que la operación se ejecuta de principio a fin como una única unidad lógica.
 > - `Riesgo de Concurrencia`: Una operación que `no es atómica` (como el ejemplo de `map.get()` seguido de `map.put()`)
@@ -768,8 +888,8 @@ Las `colecciones thread-safe` se encargan de `proteger sus operaciones internas`
 
 ### 🧩 1. ConcurrentHashMap
 
-El `ConcurrentHashMap` es la `implementación estándar de interfaz Map para entornos concurrentes` en Java
-(desde Java 5/6), diseñada para ofrecer un rendimiento superior bajo alta carga de hilos en comparación con
+El `ConcurrentHashMap` es la `implementación estándar de interfaz Map para entornos concurrentes` en Java (desde Java
+5/6), diseñada para ofrecer un rendimiento superior bajo alta carga de hilos en comparación con
 alternativas más antiguas y limitantes como `Hashtable` o `Collections.synchronizedMap(map)`.
 
 Se utiliza para manejar `mapas seguros en entornos concurrentes`, permitiendo que múltiples hilos accedan y
@@ -888,7 +1008,7 @@ El resultado `siempre será 2000`, porque `ConcurrentHashMap` `maneja la concurr
 
 | Aspecto              | `HashMap`                   | `ConcurrentHashMap`              |
 |----------------------|-----------------------------|----------------------------------|
-| Seguridad en hilos   | ❌ No seguro                 | ✅ Seguro                         |
+| Seguridad en hilos   | ❌ No seguro                | ✅ Seguro                        |
 | Rendimiento          | 🚀 Alto en un solo hilo     | ⚖️ Balanceado en múltiples hilos |
 | Resultado en ejemplo | Tamaño inconsistente        | Tamaño correcto (2000)           |
 | Uso recomendado      | Operaciones en un solo hilo | Entornos concurrentes            |

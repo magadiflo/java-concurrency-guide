@@ -7,7 +7,7 @@ public class ImmutableObjectInRecordDemo {
 
     record UserRecord(String username, Role role) {
         UserRecord {
-            role = new Role(role.getName()); // copia profunda
+            role = new Role(role.getName()); // Copia defensiva
         }
     }
 
@@ -41,6 +41,9 @@ public class ImmutableObjectInRecordDemo {
         log.info("Antes: {}", record);
 
         role.setName("ADMIN");
+        log.info("Después: {}", record);
+
+        record.role().setName("SUPER_ADMIN");
         log.info("Después: {}", record);
     }
 }
