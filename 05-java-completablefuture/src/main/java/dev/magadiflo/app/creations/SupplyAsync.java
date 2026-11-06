@@ -15,6 +15,7 @@ public class SupplyAsync {
         CompletableFuture<String> completableFuture = CompletableFuture.supplyAsync(() -> {
             // Simula latencia de un servicio externo (E/O)
             try {
+                log.info("Ejecutando operación asíncrona...");
                 Thread.sleep(Duration.ofSeconds(3));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

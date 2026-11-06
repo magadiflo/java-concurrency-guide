@@ -29,7 +29,7 @@ ejecutarse en paralelo sin bloquear el hilo principal.
 |---------------------|------------------------------------------------------|
 | `Thread`            | Bajo nivel, difícil de manejar errores y composición |
 | `ExecutorService`   | Manejo manual de resultados (`Future.get()` bloquea) |
-| `CompletableFuture` | ✔ Asíncrono ✔ No bloqueante ✔ Composición fluida     |
+| `CompletableFuture` | ✔ Asíncrono ✔ No bloqueante ✔ Composición fluida  |
 
 🚀 `CompletableFuture` **es ideal para flujos asíncronos complejos**, como llamadas a APIs, pipelines de datos o
 procesos en background.
@@ -41,7 +41,6 @@ procesos en background.
 #### 1️⃣ `supplyAsync` - Ejecuta una tarea que devuelve un resultado.
 
 ````java
-
 @Slf4j
 public class SupplyAsync {
     public static void main(String[] args) throws InterruptedException {
@@ -52,6 +51,7 @@ public class SupplyAsync {
         CompletableFuture<String> completableFuture = CompletableFuture.supplyAsync(() -> {
             // Simula latencia de un servicio externo (E/O)
             try {
+                log.info("Ejecutando operación asíncrona...");
                 Thread.sleep(Duration.ofSeconds(3));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -75,24 +75,36 @@ public class SupplyAsync {
 ````
 
 ````bash
-12:42:38.419 [main] INFO dev.magadiflo.app.creations.SupplyAsync -- Inicia método main
-12:42:38.435 [main] INFO dev.magadiflo.app.creations.SupplyAsync -- Finaliza método main
-12:42:41.436 [ForkJoinPool.commonPool-worker-1] INFO dev.magadiflo.app.creations.SupplyAsync -- Recibido: Resultado de operación asíncrona
+17:29:48.021 [main] INFO dev.magadiflo.app.creations.SupplyAsync -- Inicia método main
+17:29:48.035 [ForkJoinPool.commonPool-worker-1] INFO dev.magadiflo.app.creations.SupplyAsync -- Ejecutando operación asíncrona...
+17:29:48.037 [main] INFO dev.magadiflo.app.creations.SupplyAsync -- Finaliza método main
+17:29:51.038 [ForkJoinPool.commonPool-worker-1] INFO dev.magadiflo.app.creations.SupplyAsync -- Recibido: Resultado de operación asíncrona
 ````
 
 Definiciones Clave
 
-- `CompletableFuture.supplyAsync`: Inicia una tarea que devuelve un valor de forma asíncrona. Al no especificar un
-  `Executor`, la tarea se delega automáticamente al `ForkJoinPool.commonPool`.
-
-
+- `CompletableFuture.supplyAsync`: Programa la ejecución asíncrona de una tarea que devuelve un valor. **Cuando se
+  invoca este método, el `Supplier` se envía al `Executor` para su ejecución.** Si no se especifica uno, se utiliza por
+  defecto el `ForkJoinPool.commonPool`.
+    - Una vez programada la tarea, `supplyAsync()` devuelve inmediatamente un `CompletableFuture` que representa el
+      resultado futuro de la operación. Esto permite que el hilo que realizó la invocación continúe ejecutando las
+      siguientes instrucciones sin esperar a que termine el `Supplier`.
+    - `Importante`: La ejecución efectiva del `Supplier` no necesariamente comienza en el mismo instante de la
+      invocación, ya que depende de la disponibilidad del hilo encargado de ejecutar la tarea.
 - `ForkJoinPool.commonPool`: Es el pool de hilos compartido por defecto en la JVM. Se encarga de ejecutar tareas
-  asíncronas de forma eficiente, ajustando automáticamente el número de hilos según los núcleos disponibles en tu
-  procesador para maximizar el rendimiento.
-
-
+  asíncronas de forma eficiente, utilizando un conjunto de hilos de trabajo.
 - `thenAccept(Consumer<? super T> action)`: Es un método de la etapa de finalización. Permite procesar el resultado del
-  `Future` tan pronto como se completa, operando de manera no bloqueante.
+  `CompletableFuture` tan pronto como se completa correctamente, sin bloquear al hilo que registra el callback.
+    - **Ejecución del callback:** En el ejemplo, podemos observar que tanto el mensaje
+      `Ejecutando operación asíncrona...`
+      como el mensaje `Recibido: Resultado de operación asíncrona` se imprimen desde el hilo
+      `ForkJoinPool.commonPool-worker-1`. Esto sucede porque el callback se registró mientras el `Supplier` todavía
+      estaba ejecutándose. Cuando este termina y completa el `CompletableFuture`, el callback puede ejecutarse
+      directamente en ese mismo hilo.
+        - Si el `CompletableFuture` ya estuviera completado cuando se invoca `thenAccept()`, el callback podría
+          ejecutarse directamente en el hilo que registra dicha acción (por ejemplo, `main`).
+        - **Importante:** `thenAccept()` no garantiza un hilo específico para ejecutar el callback. Su ejecución depende
+          de si la operación ya se completó al registrar la acción.
 
 #### 1️⃣ `runAsync` - Ejecuta una tarea sin devolver resultado.
 
@@ -237,8 +249,8 @@ Por defecto, `CompletableFuture` usa el `ForkJoinPool.commonPool()`. Sin embargo
 
 1. `Aislamiento (Bulkhead)`: Si una tarea pesada bloquea todos los hilos del pool, no afectará a otras tareas
    asíncronas del sistema que usen el pool común.
-2. `Control de Recursos`: Puedes definir exactamente cuántos hilos quieres asignar a un proceso específico
-   (ej. 50 hilos para envío de correos, 10 para reportes).
+2. `Control de Recursos`: Puedes definir exactamente cuántos hilos quieres asignar a un proceso específico (ej. 50 hilos
+   para envío de correos, 10 para reportes).
 3. `Monitoreo`: Los pools personalizados permiten trackear métricas como hilos activos, tareas en cola y tiempos de
    ejecución de forma más sencilla.
 
