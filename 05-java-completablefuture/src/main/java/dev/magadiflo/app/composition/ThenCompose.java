@@ -8,33 +8,59 @@ import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 public class ThenCompose {
+
+    record User(Integer id, String name, String email) {
+    }
+
+    record Order(Integer id, Integer userId, Double total) {
+    }
+
+    record OrderDetails(Integer id, Integer orderId, String productName) {
+    }
+
     public static void main(String[] args) throws InterruptedException {
         // pipeline asíncrono: Usuario -> Pedidos -> Detalles
 
-        CompletableFuture<List<String>> orderDetailsFuture = CompletableFuture
+        CompletableFuture<List<OrderDetails>> orderDetailsFuture = CompletableFuture
                 .supplyAsync(() -> getUser(1))
                 // 'thenCompose' se usa cuando la siguiente función devuelve otro CompletableFuture.
                 // Aplica un "aplanamiento" (flattening), evitando tener un CompletableFuture<CompletableFuture<String>>.
-                .thenCompose(user -> CompletableFuture.supplyAsync(() -> getOrdersByUser(user)))
+                .thenCompose(user -> getOrdersByUserAsync(user))
                 // Encadenamos otra operación asíncrona dependiente de la anterior.
-                .thenCompose(orders -> CompletableFuture.supplyAsync(() -> getOrderDetails(orders)));
+                .thenCompose(orders -> getOrderDetailsAsync(orders));
 
-        // Consumo del resultado final (la lista de detalles)
+        // Consumo del resultado final
         orderDetailsFuture.thenAccept(details -> log.info("Proceso completado: {}", details));
-
-        // Mantenemos el hilo main vivo para que los hilos del pool terminen su tarea.
         Thread.sleep(Duration.ofSeconds(1));
     }
 
-    private static String getUser(int userId) {
-        return "usuario-" + userId;
+    private static User getUser(Integer userId) {
+        log.info("Consultando usuario...");
+        return new User(userId, "Sam", "sam@gmail.com");
     }
 
-    private static String getOrdersByUser(String user) {
-        return "orders-" + user;
+    private static CompletableFuture<List<Order>> getOrdersByUserAsync(User user) {
+        return CompletableFuture.supplyAsync(() -> {
+            log.info("Consultando pedidos del usuario: {}", user.name());
+
+            return List.of(
+                    new Order(101, user.id(), 150.0),
+                    new Order(102, user.id(), 250.0)
+            );
+        });
     }
 
-    private static List<String> getOrderDetails(String orders) {
-        return List.of("orders-details-" + orders);
+    private static CompletableFuture<List<OrderDetails>> getOrderDetailsAsync(List<Order> orders) {
+        return CompletableFuture.supplyAsync(() -> {
+            log.info("Consultando detalles de los pedidos...");
+
+            return orders.stream()
+                    .map(order -> new OrderDetails(
+                            order.id() * 10,
+                            order.id(),
+                            "Producto-" + order.id()
+                    ))
+                    .toList();
+        });
     }
 }

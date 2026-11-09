@@ -322,59 +322,226 @@ Características principales:
 
 ### 🔸 thenCompose - Encadenar operaciones asíncronas dependientes
 
-Usado cuando la siguiente operación también es asíncrona y depende del resultado anterior. Evita el anidamiento de
-`CompletableFutures` (`CompletableFuture<CompletableFuture<T>>`).
+Se utiliza cuando necesitamos encadenar operaciones asíncronas en las que cada operación depende del resultado de la
+anterior y la función ejecutada devuelve otro `CompletableFuture`.
+
+Su principal característica es que combina el futuro devuelto por la siguiente operación con la cadena existente,
+evitando el anidamiento de futuros (`CompletableFuture<CompletableFuture<T>>`).
+
+#### 🧪 Ejemplo práctico
+
+Supongamos que necesitamos obtener los detalles de los pedidos de un usuario. Para ello, debemos realizar tres
+consultas:
+
+1. Obtener el usuario.
+2. Obtener los pedidos asociados a ese usuario.
+3. Obtener los detalles de dichos pedidos.
+
+En este escenario, la primera operación devuelve directamente un objeto `User`, mientras que las siguientes devuelven
+un `CompletableFuture`, simulando consultas asíncronas a servicios externos.
 
 ````java
-
 @Slf4j
 public class ThenCompose {
+
+    record User(Integer id, String name, String email) {
+    }
+
+    record Order(Integer id, Integer userId, Double total) {
+    }
+
+    record OrderDetails(Integer id, Integer orderId, String productName) {
+    }
+
     public static void main(String[] args) throws InterruptedException {
         // pipeline asíncrono: Usuario -> Pedidos -> Detalles
 
-        CompletableFuture<List<String>> orderDetailsFuture = CompletableFuture
+        CompletableFuture<List<OrderDetails>> orderDetailsFuture = CompletableFuture
                 .supplyAsync(() -> getUser(1))
                 // 'thenCompose' se usa cuando la siguiente función devuelve otro CompletableFuture.
                 // Aplica un "aplanamiento" (flattening), evitando tener un CompletableFuture<CompletableFuture<String>>.
-                .thenCompose(user -> CompletableFuture.supplyAsync(() -> getOrdersByUser(user)))
+                .thenCompose(user -> getOrdersByUserAsync(user))
                 // Encadenamos otra operación asíncrona dependiente de la anterior.
-                .thenCompose(orders -> CompletableFuture.supplyAsync(() -> getOrderDetails(orders)));
+                .thenCompose(orders -> getOrderDetailsAsync(orders));
 
-        // Consumo del resultado final (la lista de detalles)
+        // Consumo del resultado final
         orderDetailsFuture.thenAccept(details -> log.info("Proceso completado: {}", details));
-
-        // Mantenemos el hilo main vivo para que los hilos del pool terminen su tarea.
         Thread.sleep(Duration.ofSeconds(1));
     }
 
-    private static String getUser(int userId) {
-        return "usuario-" + userId;
+    private static User getUser(Integer userId) {
+        log.info("Consultando usuario...");
+        return new User(userId, "Sam", "sam@gmail.com");
     }
 
-    private static String getOrdersByUser(String user) {
-        return "orders-" + user;
+    private static CompletableFuture<List<Order>> getOrdersByUserAsync(User user) {
+        return CompletableFuture.supplyAsync(() -> {
+            log.info("Consultando pedidos del usuario: {}", user.name());
+
+            return List.of(
+                    new Order(101, user.id(), 150.0),
+                    new Order(102, user.id(), 250.0)
+            );
+        });
     }
 
-    private static List<String> getOrderDetails(String orders) {
-        return List.of("orders-details-" + orders);
+    private static CompletableFuture<List<OrderDetails>> getOrderDetailsAsync(List<Order> orders) {
+        return CompletableFuture.supplyAsync(() -> {
+            log.info("Consultando detalles de los pedidos...");
+
+            return orders.stream()
+                    .map(order -> new OrderDetails(
+                            order.id() * 10,
+                            order.id(),
+                            "Producto-" + order.id()
+                    ))
+                    .toList();
+        });
     }
 }
 ````
 
+Salida obtenida:
+
 ````bash
-13:20:48.580 [ForkJoinPool.commonPool-worker-1] INFO dev.magadiflo.app.composition.ThenCompose -- Proceso completado: [orders-details-orders-usuario-1] 
+18:10:59.604 [ForkJoinPool.commonPool-worker-1] INFO dev.magadiflo.app.composition.ThenCompose -- Consultando usuario...
+18:10:59.613 [ForkJoinPool.commonPool-worker-1] INFO dev.magadiflo.app.composition.ThenCompose -- Consultando pedidos del usuario: Sam
+18:10:59.618 [ForkJoinPool.commonPool-worker-1] INFO dev.magadiflo.app.composition.ThenCompose -- Consultando detalles de los pedidos...
+18:10:59.624 [ForkJoinPool.commonPool-worker-1] INFO dev.magadiflo.app.composition.ThenCompose -- Proceso completado: [OrderDetails[id=1010, orderId=101, productName=Producto-101], OrderDetails[id=1020, orderId=102, productName=Producto-102]]
 ````
 
-#### ¿Por qué usar thenCompose?
+#### **🔍 ¿Qué sucede durante la ejecución?**
 
-Se utiliza para orquestar servicios dependientes. Si el `Servicio A` devuelve un `Future` y el `Servicio B`
-también devuelve un `Future` basado en el resultado de A, `thenCompose` une ambos de forma que el resultado final sea
-un solo `Future` plano.
+Analicemos el encadenamiento:
 
-### 🔑 Diferencia clave:
+```java
+CompletableFuture<List<OrderDetails>> orderDetailsFuture = CompletableFuture
+        .supplyAsync(() -> getUser(1))
+        .thenCompose(user -> getOrdersByUserAsync(user))
+        .thenCompose(orders -> getOrderDetailsAsync(orders));
+```
 
-- `thenApply`: Transforma el resultado de forma síncrona (`T -> U`)
-- `thenCompose`: Encadena otra operación asíncrona (`T -> CompletableFuture<U>`)
+**1. Primera operación: Obtener el usuario**
+
+```bash
+CompletableFuture.supplyAsync(() -> getUser(1))
+```
+
+- `supplyAsync()` programa la ejecución de `getUser(1)` en el `ForkJoinPool.commonPool`, que es el executor utilizado
+  por defecto.
+- `getUser(1)` devuelve directamente un objeto `User`.
+- Por tanto, el futuro resultante es un `CompletableFuture<User>`.
+
+**2. Segunda operación: Obtener los pedidos**
+
+```bash
+.thenCompose(user -> getOrdersByUserAsync(user))
+```
+
+- `thenCompose()` espera a que se complete correctamente la etapa anterior y recibe directamente el objeto `User`.
+- Ejecuta la función proporcionada, que invoca `getOrdersByUserAsync(user)`.
+- Este método devuelve un `CompletableFuture<List<Order>>`.
+- `thenCompose()` integra ese futuro en la cadena, evitando generar un
+  `CompletableFuture<CompletableFuture<List<Order>>>`.
+
+**3. Tercera operación: Obtener los detalles**
+
+```bash
+.thenCompose(orders -> getOrderDetailsAsync(orders))
+```
+
+- Recibe la lista de pedidos cuando se completa la operación anterior.
+- Ejecuta `getOrderDetailsAsync(orders)`, que devuelve un `CompletableFuture<List<OrderDetails>>`.
+- Nuevamente, `thenCompose()` integra ese futuro en la cadena.
+
+**4. Resultado final**
+
+El resultado de todo el encadenamiento es un único:
+
+```java
+CompletableFuture<List<OrderDetails>>
+```
+
+Este futuro representa la finalización de todas las operaciones encadenadas y contiene la lista de detalles obtenida al
+finalizar el proceso.
+
+#### 🔑 ¿Por qué utilizar `thenCompose`?
+
+La razón principal es evitar el anidamiento de `CompletableFuture` cuando una función encadenada devuelve otro futuro.
+Para entenderlo mejor, imaginemos que reemplazamos el primer `thenCompose()` por `thenApply()`:
+
+```java
+CompletableFuture<CompletableFuture<List<Order>>> ordersFuture = CompletableFuture
+        .supplyAsync(() -> getUser(1))
+        .thenApply(user -> getOrdersByUserAsync(user));
+```
+
+¿Qué sucede?
+
+- `supplyAsync()` devuelve un `CompletableFuture<User>`.
+- `thenApply()` recibe el objeto `User` y ejecuta `getOrdersByUserAsync(user)`.
+- Este método devuelve un `CompletableFuture<List<Order>>`.
+- `thenApply()` toma ese futuro como el resultado de la transformación, generando un futuro anidado.
+
+El resultado es:
+
+```java
+CompletableFuture<CompletableFuture<List<Order>>>
+```
+
+En cambio, utilizando `thenCompose()`:
+
+```java
+CompletableFuture<List<Order>> ordersFuture = CompletableFuture
+        .supplyAsync(() -> getUser(1))
+        .thenCompose(user -> getOrdersByUserAsync(user));
+```
+
+Obtenemos directamente un `CompletableFuture<List<Order>>`, porque `thenCompose()` integra el futuro devuelto por la
+función en la cadena de procesamiento.
+
+#### 📌 Diferencia clave entre `thenApply` y `thenCompose`
+
+La diferencia no está simplemente en que una operación dependa de otra, sino en **el tipo de dato que devuelve la
+función que pasamos como argumento**.
+
+| Método          | Comportamiento                                                     | Transformación             |
+|-----------------|--------------------------------------------------------------------|----------------------------|
+| `thenApply()`   | Transforma el resultado anterior y devuelve un valor directamente. | `T → U`                    |
+| `thenCompose()` | Encadena una operación que devuelve otro `CompletableFuture`.      | `T → CompletableFuture<U>` |
+
+- **`thenApply(Function<T, U>)`**: Se utiliza cuando queremos transformar un resultado en otro, por ejemplo, convertir
+  un `User` en un `UserDTO`.
+- **`thenCompose(Function<T, CompletableFuture<U>>)`**: Se utiliza cuando necesitamos ejecutar una operación que
+  devuelve otro `CompletableFuture`, integrándolo en la cadena existente.
+
+> **💡 Regla práctica:** Si la función que pasamos a `thenApply()` devuelve un objeto directamente, utilizamos
+> `thenApply()`. Si devuelve un `CompletableFuture` que queremos integrar en la cadena, utilizamos `thenCompose()`.
+
+> #### **📝 NOTA: Cuando la primera operación también devuelve un `CompletableFuture`**
+>
+> En nuestro ejemplo, `getUser()` devuelve directamente un objeto `User`. Por eso iniciamos la cadena utilizando
+> `CompletableFuture.supplyAsync()`.
+>
+> Sin embargo, en aplicaciones reales, es habitual que los clientes encargados de consultar servicios externos ya
+> devuelvan un `CompletableFuture<T>`.
+>
+> En ese escenario, podemos utilizar directamente el futuro devuelto por el primer método como punto de partida, sin
+> necesidad de envolverlo en otro `supplyAsync()`.
+>
+> **Ejemplo:**
+>
+> ```java
+> CompletableFuture<List<OrderDetails>> orderDetailsFuture = getUserAsync(1)
+>         .thenCompose(user -> getOrdersByUserAsync(user))
+>         .thenCompose(orders -> getOrderDetailsAsync(orders));
+> ```
+>
+> En este caso, `getUserAsync(1)` devuelve un `CompletableFuture<User>`, por lo que podemos comenzar directamente el
+> encadenamiento con `thenCompose()`.
+>
+> De esta manera, los tres métodos pueden devolver sus respectivos `CompletableFuture`, manteniendo una única cadena de
+> operaciones asíncronas.
 
 ## ⚠️ Manejo de Errores
 
