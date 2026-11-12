@@ -38,20 +38,20 @@ Son instancias de `java.lang.Thread` que no están vinculadas `1:1` con los hilo
 
 ### 🔄 Diferencias con Platform Threads
 
-| Característica          | Platform Threads (clásicos)                           | Virtual Threads (Java 21)                                     |
-|-------------------------|-------------------------------------------------------|---------------------------------------------------------------|
-| **Implementación**      | Se apoyan directamente en hilos del sistema operativo | Son hilos ligeros gestionados por la JVM                      |
-| **Bloqueo I/O**         | Bloquear un hilo implica bloquear un recurso del SO   | El hilo virtual se "aparca" y libera el hilo físico           |
-| **Escalabilidad**       | Limitada (decenas o cientos de hilos)                 | Masiva (miles o millones de hilos concurrentes)               |
-| **Uso típico**          | Procesos pesados, cálculos intensivos                 | Servidores concurentes, microservicios, tareas I/O intensivas |
-| **🏗️ Gestión**         | Sistema Operativo                                     | JVM (Scheduler interno)                                       |
-| **💾 Memoria**          | ~1 MB por thread                                      | ~1 KB por thread                                              |
-| **📊 Cantidad máxima**  | Miles (~1000-5000)                                    | Millones (1M+)                                                |
+| Característica           | Platform Threads (clásicos)                           | Virtual Threads (Java 21)                                     |
+|--------------------------|-------------------------------------------------------|---------------------------------------------------------------|
+| **Implementación**       | Se apoyan directamente en hilos del sistema operativo | Son hilos ligeros gestionados por la JVM                      |
+| **Bloqueo I/O**          | Bloquear un hilo implica bloquear un recurso del SO   | El hilo virtual se "aparca" y libera el hilo físico           |
+| **Escalabilidad**        | Limitada (decenas o cientos de hilos)                 | Masiva (miles o millones de hilos concurrentes)               |
+| **Uso típico**           | Procesos pesados, cálculos intensivos                 | Servidores concurentes, microservicios, tareas I/O intensivas |
+| **🏗️ Gestión**           | Sistema Operativo                                     | JVM (Scheduler interno)                                       |
+| **💾 Memoria**           | ~1 MB por thread                                      | ~1 KB por thread                                              |
+| **📊 Cantidad máxima**   | Miles (~1000-5000)                                    | Millones (1M+)                                                |
 | **⚡ Costo de creación** | Alto (system call)                                    | Muy bajo (objeto Java)                                        |
-| **🔄 Context Switch**   | Costoso (kernel space)                                | Económico (user space)                                        |
-| **🎯 Mejor uso**        | CPU-intensive                                         | I/O-intensive                                                 |
-| **📌 Thread Pinning**   | No aplica                                             | Puede ocurrir con synchronized                                |
-| **🛠️ Pool necesario**  | Sí (ExecutorService)                                  | No recomendado                                                |
+| **🔄 Context Switch**    | Costoso (kernel space)                                | Económico (user space)                                        |
+| **🎯 Mejor uso**         | CPU-intensive                                         | I/O-intensive                                                 |
+| **📌 Thread Pinning**    | No aplica                                             | Puede ocurrir con synchronized                                |
+| **🛠️ Pool necesario**    | Sí (ExecutorService)                                  | No recomendado                                                |
 
 ## 🚀 Project Loom
 
@@ -179,8 +179,8 @@ public class Platform {
   tradicional.
 - Ambos métodos consumen aproximadamente 1MB de memoria RAM por hilo (Stack Memory).
 - Ambos son gestionados directamente por el Planificador del Sistema Operativo (OS Scheduler).
-- Se recomienda usar la API moderna (ofPlatform()) por consistencia si también estás usando Virtual Threads
-  (ofVirtual()) en tu proyecto.
+- Se recomienda usar la API moderna (`ofPlatform()`) por consistencia si también estás usando Virtual Threads
+  (`ofVirtual()`) en tu proyecto.
 
 ### 🪶 Virtual Threads
 
@@ -401,6 +401,27 @@ La línea `log.info("Task {} en {}", taskId, Thread.currentThread().getName());`
 - En un `FixedThreadPool`, Java les asigna nombres automáticamente como `pool-1-thread-1`.
 - En `newVirtualThreadPerTaskExecutor()`, los hilos se crean de forma masiva y, para ahorrar memoria y tiempo, Java los
   deja con el nombre en blanco o null.
+
+#### 🔎 Una aclaración: ¿Qué significa `virtual-28`, `virtual-30`, etc. en el log?
+
+Aunque `Thread.currentThread().getName()` devuelve una cadena vacía, es posible observar identificadores como
+`[virtual-28]`, `[virtual-30]` o `[virtual-9980]` en los logs de ejecución.
+
+¿Significa que esos son los nombres de los hilos virtuales? **No necesariamente.**
+Debemos distinguir entre el nombre del hilo y la información que muestra el framework de logging:
+
+- **Nombre del hilo (`getName()`):** es el nombre asignado al objeto `Thread`. En nuestros ejemplos está vacío
+  porque no hemos asignado uno explícitamente.
+- **Identificador mostrado por el logger (`[virtual-28]`):** es la representación que utiliza la configuración del
+  sistema de logging para identificar el hilo que genera el mensaje. No debemos asumir que corresponde al valor
+  devuelto por `getName()`.
+
+En otras palabras, que el logger muestre `[virtual-28]` no significa que `Thread.currentThread().getName()` devuelva
+`virtual-28`.
+
+> 💡 **Nota:** Si queremos asignar nombres explícitos a nuestros hilos virtuales, podemos hacerlo mediante
+> `Thread.ofVirtual().name("mi-hilo").start(...)`. Así, el nombre podrá consultarse mediante
+> `Thread.currentThread().getName()` y mostrarse en el log.
 
 ### 📊 Comparación clara
 
